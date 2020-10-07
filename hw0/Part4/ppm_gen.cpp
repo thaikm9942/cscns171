@@ -59,8 +59,6 @@ int main(int argc, char* argv[]) {
         int center_x = cols / 2;
         int center_y = rows / 2;
 
-        int r2 = (diameter / 2) * (diameter / 2);
-
         // Iterate through all rows and columns and draw the pixels
         for (int y = 0; y < rows; y++) {
             for (int x = 0; x < cols; x++) {
