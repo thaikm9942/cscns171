@@ -39,12 +39,12 @@ Object create_object(ifstream &ifs) {
     // keep these as strings to convert to either floats or ints later
     string n1, n2, n3;
 
-    // Proceeds all tokens for either a vertex or a face line-by-line
+    // Process all tokens for either a vertex or a face line-by-line
     while (ifs >> type >> n1 >> n2 >> n3) {
         // If the first character of the line is 'v', then process the
         // strings as vertex float coordinates 
         if (type == 'v') {
-            Vertex v = Vertex(strtof(n1.c_str(), NULL), strtof(n2.c_str(), NULL), strtof(n3.c_str(), NULL));
+            Vertex v = Vertex(strtod(n1.c_str(), NULL), strtod(n2.c_str(), NULL), strtod(n3.c_str(), NULL));
             obj.add(v);
         }
         // If the first character is 'f' instead, then process the strings
@@ -54,7 +54,7 @@ Object create_object(ifstream &ifs) {
             obj.add(f);
         }
         else {
-            cout << "Data is neither a vertex or a file\n";
+            throw "Data is neither a vertex or a file\n";
             break;
         }
     }
@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
             ifs.open(argv[i], ifstream::in);
             // If file opening is unsuccessful, print out an error message
             if (!ifs.is_open()) {
-                cout << "Error opening file\n";
+                throw "Error opening file\n";
             }
             else {      
                 // Use the opened filestream to create a new object  
