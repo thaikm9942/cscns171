@@ -2,14 +2,14 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
-#include "object.h"
+#include "../include/object.h"
 
 /* Default NULL_VERTEX to mark the start of a vector of Vertex objects
  * since vertices are 1-indexed
  */
 const Vertex NULL_VERTEX = Vertex(INFINITY, INFINITY, INFINITY);
 
-// Prints in the object to the output in a formatted paragraph
+// Prints the data of an object to the output in a formatted paragraph
 void print_object(Object obj) {
     // Enumerates all the vertices in the object
     for (int i = 1; i < obj.vertices.size(); i++) {
@@ -23,13 +23,13 @@ void print_object(Object obj) {
     }
 }
 
-// This function returns a graphical Object from a succesfully
+// This function returns a graphical Object from a successfully
 // opened file stream
 Object create_object(ifstream &ifs) {
     // Initializes the vectors containing the corresponding vertices and faces
     // of an object
     Object obj = Object();
-    obj.add_vertex(NULL_VERTEX);
+    obj.add(NULL_VERTEX);
 
     // Variables to store the tokens from the file
     // The "type" of data, either a face or a vertex
@@ -45,13 +45,13 @@ Object create_object(ifstream &ifs) {
         // strings as vertex float coordinates 
         if (type == 'v') {
             Vertex v = Vertex(strtof(n1.c_str(), NULL), strtof(n2.c_str(), NULL), strtof(n3.c_str(), NULL));
-            obj.add_vertex(v);
+            obj.add(v);
         }
         // If the first character is 'f' instead, then process the strings
         // as the vertex integer indices
         else if (type == 'f') {
             Face f = Face(atoi(n1.c_str()), atoi(n2.c_str()), atoi(n3.c_str()));
-            obj.add_face(f);
+            obj.add(f);
         }
         else {
             cout << "Data is neither a vertex or a file\n";

@@ -11,7 +11,8 @@ using namespace std;
 class Vertex {
     public:
         float x_, y_, z_;
-        // Default constructor
+        // Default constructor. Initializes a vertex with
+        // (0.0, 0.0, 0.0) coordinates
         Vertex() : x_(0.0), y_(0.0), z_(0.0) {}
 
         // Constructor that takes in a given (x, y, z) coordinates
@@ -32,8 +33,8 @@ class Face {
 };
 
 /* This class represents a graphics object which contains the vertices,
- * the faces of an object, and the transformations to be applied to each
- * vertex 
+ * the faces of an object, and the transformations to be applied to all
+ * vertices
  */
 class Object {
     public:
@@ -52,9 +53,9 @@ class Object {
 
         // Functions to add a vertex, a face or a transformation matrix to the corresponding
         // list of the object
-        void add_vertex(Vertex v) { vertices.push_back(v); }
-        void add_face(Face f) { faces.push_back(f); }
-        void add_transform(Matrix4d m) {transforms.push_back(m); }
+        void add(Vertex v) { vertices.push_back(v); }
+        void add(Face f) { faces.push_back(f); }
+        void add(Matrix4d m) {transforms.push_back(m); }
 };
 
 #endif // #ifndef __OBJECT_H__
