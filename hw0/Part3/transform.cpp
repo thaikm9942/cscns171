@@ -47,9 +47,7 @@ Transformation create_transformation(ifstream& ifs) {
     // If the line is empty, we have reached the end of the transformation block for the labeled
     // object, exit the function and return the transformation object
     while (getline(ifs, line) && !line.empty()) {
-        cout << "During transformation:\n" << line << "\n";
-        
-        // Else, we parse the tokens to identify
+        // We parse the tokens to identify
         vector<string> tokens = strsplit(line, ' ');
         
         // Parse the type of the transformation
@@ -97,7 +95,7 @@ Object create_object(ifstream &ifs) {
         // If the first character of the line is 'v', then process the
         // strings as vertex float coordinates 
         if (type == 'v') {
-            Vertex v = Vertex(strtof(n1.c_str(), NULL), strtof(n2.c_str(), NULL), strtof(n3.c_str(), NULL));
+            Vertex v = Vertex(strtod(n1.c_str(), NULL), strtod(n2.c_str(), NULL), strtod(n3.c_str(), NULL));
             obj.add(v);
         }
         // If the first character is 'f' instead, then process the strings
@@ -179,7 +177,6 @@ int main(int argc, char* argv[]) {
 
             string line;
             while (getline(ifs, line)) {
-                cout << "Not transformation:\n" << line << "\n";
                 vector<string> tokens = strsplit(line, ' ');
                 
                 // If number of tokens are 2, then this line gives the name of an obj. file to be parsed.

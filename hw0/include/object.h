@@ -3,21 +3,26 @@
 
 #include <vector>
 #include "../Eigen/Dense"
+#include "../include/transform.h"
 
 using namespace Eigen;
 using namespace std;
 
-// This class represents a vertex with x, y, and z float coordinates 
+// This class represents a vertex with x, y, z and w homogeneous float coordinates 
 class Vertex {
     public:
-        float x_, y_, z_;
+        double x_, y_, z_, w_;
         // Default constructor. Initializes a vertex with
-        // (0.0, 0.0, 0.0) coordinates
-        Vertex() : x_(0.0), y_(0.0), z_(0.0) {}
+        // (0.0, 0.0, 0.0, 1.0) coordinates
+        Vertex() : x_(0.0), y_(0.0), z_(0.0), w_(1.0) {}
 
         // Constructor that takes in a given (x, y, z) coordinates
-        // to form a vertex
-        Vertex(float x, float y, float z) : x_(x), y_(y), z_(z) {}
+        // to form a vertex. The default w coordinate is 1.0
+        Vertex(double x, double y, double z) : x_(x), y_(y), z_(z), w_(1.0) {}
+
+        // Constructor that takes in a given homogenous (x, y, z, w) coordinate
+        // to form a vertex.
+        Vertex(double x, double y, double z, double w) : x_(x), y_(y), z_(z), w_(w) {}
 };
 
 /* This class represents a face containing 3 integers representing 
@@ -40,22 +45,23 @@ class Object {
     public:
         vector<Vertex> vertices;
         vector<Face> faces;
-        vector<Matrix4d> transforms;
-
+        Transformation transform;
         // Default constructor that initializes empty lists of vertices,
         // faces and transforms for the object
-        Object() : vertices(), faces(), transforms() {}
+        Object() : vertices(), faces(), transform() {}
 
         // Constructor that takes in only a list of vertices and faces that
         // forms the object. The list of transformation matrices are initialized,
         // but left empty.
-        Object(vector<Vertex> vtx, vector<Face> fs) : vertices(vtx), faces(fs), transforms() {}
+        Object(vector<Vertex> vtx, vector<Face> fs) : vertices(vtx), faces(fs), transform() {}
+
+        // Copy constructor for an Object class
+        Object(const Object& other) : vertices(other.vertices), faces(other.faces), transform(other.transform) {}
 
         // Functions to add a vertex, a face or a transformation matrix to the corresponding
         // list of the object
         void add(Vertex v) { vertices.push_back(v); }
         void add(Face f) { faces.push_back(f); }
-        void add(Matrix4d m) {transforms.push_back(m); }
 };
 
 #endif // #ifndef __OBJECT_H__

@@ -13,7 +13,7 @@ FLAGS = -g
 INCLUDE = -I../
 SOURCES = *.cpp
 
-EXENAME = my_prog
+EXENAME = transform
 
 all: $(SOURCES)
 	$(CC) $(FLAGS) -o $(EXENAME) $(INCLUDE) $(SOURCES)

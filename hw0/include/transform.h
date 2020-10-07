@@ -3,6 +3,7 @@
 
 #include <vector>
 #include "../Eigen/Dense"
+#include <math.h>
 
 /* This header file defines the Transformation class and
  * the corresponding functions to create transformation
@@ -37,8 +38,8 @@ class Transformation {
         double r32 = u[2] * u[1] * (1 - cos(theta)) + u[0] * sin(theta);
         double r33 = u[2] * u[2] + (1 - u[2] * u[2]) * cos(theta);
 
-        r << r11, r12, r13, 0.0, // row 1
-            r21, r22, r23, 0.0, // row 2
+        r << r11, r12, r13, 0, // row 1
+            r21, r22, r23, 0, // row 2
             r31, r32, r33, 0, // row 3
             0, 0, 0, 1; // row 4
 
@@ -76,9 +77,9 @@ class Transformation {
         Transformation(vector<Matrix4d> ts) : ts_(ts) {}
 
         // Adds a CCW rotation to the transformation given a rotation vector and the
-        // angle
-        void add_rotation(double u[3], double theta) {
-            ts_.push_back(create_rotation_matrix(u, theta));
+        // angle (in radians)
+        void add_rotation(double u[3], double rad) {
+            ts_.push_back(create_rotation_matrix(u, rad));
         }
 
         // Adds a translation to the transformation given a vector
@@ -88,7 +89,7 @@ class Transformation {
 
         // Adds a scaling to the transformation given a vector
         void add_scaling(double v[3]) {
-            ts_.push_back(create_translation_matrix(v));
+            ts_.push_back(create_scaling_matrix(v));
         }
 
         // Computes the total transformation, which is the product of all transformations
@@ -97,12 +98,9 @@ class Transformation {
             // Initialize product as an identity matrix
             Matrix4d prod = Matrix4d::Identity();
 
-            // While there are still transformations, left-multiply the current product with
-            // the last element, the pop 
-            while (!ts_.empty()) {
-                Matrix4d t = ts_.back();     
-                prod = t * prod;
-                ts_.pop_back();
+            // Iterate through all transformations and left multiply them in order
+            for (int i = 0; i < ts_.size(); i++) {
+                prod = ts_[i] * prod;
             }
 
             return prod;

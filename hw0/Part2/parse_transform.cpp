@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <math.h>
 #include "../include/transform.h"
 
@@ -29,7 +28,7 @@ Matrix4d create_transformation_matrix(ifstream& ifs) {
             else { ts.add_scaling(v); }
         }
         else {
-            cout << "Data does not contain either a translation, a rotation or a scaling vector\n";
+            throw "Data does not contain either a translation, a rotation or a scaling vector\n";
             break;
         }
     }
@@ -49,7 +48,7 @@ int main(int argc, char* argv[]) {
 
         // If file opening is unsuccessful, print out an error message
         if (!ifs.is_open()) {
-            cout << "Error opening file\n";
+            throw "Error opening file\n";
         }
         else {      
             // Use the opened filestream to create a new transformation matrix
