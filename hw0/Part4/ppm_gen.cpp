@@ -55,17 +55,22 @@ int main(int argc, char* argv[]) {
         cout << MAX_INTENSITY << "\n";
 
         // Set the center of the circle to be the middle of the grid.
-        // As an approximation, this should be at (rows / 2, cols / 2)
-        int center_x = rows / 2;
-        int center_y = cols / 2;
+        // As an approximation, this should be at (cols / 2, rows / 2)
+        int center_x = cols / 2;
+        int center_y = rows / 2;
+
+        int r2 = (diameter / 2) * (diameter / 2);
 
         // Iterate through all rows and columns and draw the pixels
-        for (int x = 0; x < cols; x++) {
-            for (int y = 0; y < rows; y++) {
+        for (int y = 0; y < rows; y++) {
+            for (int x = 0; x < cols; x++) {
                 // Calculates the distance between the current pixel
                 // and the pixel at the center of the circle
                 int dx = x - center_x;
                 int dy = y - center_y;
+
+                // Calculate the distance between this pixel to the
+                // center of the circle pixel
                 int d = dx * dx + dy * dy;
 
                 // Check if the pixel is inside of the circle. If it is,
