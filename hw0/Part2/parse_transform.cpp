@@ -58,7 +58,6 @@ int main(int argc, char* argv[]) {
             Matrix4d inverse = product.inverse();
 
             // Outputs the inverse matrix
-            cout << "Inverse of product of transformation matrix:\n";
             cout << inverse << endl;
         }
     }
