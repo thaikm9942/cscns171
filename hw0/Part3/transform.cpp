@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <map>
 #include <iostream>
 #include <fstream>
 #include <math.h>
@@ -137,17 +138,33 @@ Labeled_Object find_object_with_label(vector<Labeled_Object> elems, string label
 
 // Print the output as formatted for all labeled objects
 void print_transformations(vector<Labeled_Object> final_objs) {
+    // Map to keep track of how many of the same objects there are
+    map<string, int> label_map;
     for (int i = 0; i < final_objs.size(); i++) {
         Labeled_Object elem = final_objs[i];
         Object obj = elem.obj;
-        printf("%s\n", elem.label.c_str());
+
+        if (label_map.find(elem.label) == label_map.end()) {
+            label_map[elem.label] = 1;
+        }
+        else {
+            label_map[elem.label] += 1;
+        }
+
+        // Prints the label and its copy number
+        printf("%s_copy%d\n", elem.label.c_str(), label_map[elem.label]);
+
+        // Applies transformation to all vertices of the object
+        // and prints out the newly transformed coordinates
         for (int i = 1; i < obj.vertices.size(); i++) {
             Vertex v = obj.vertices[i];
             Vector4d col = to_col_vector(v);
             Vector4d final = obj.transform.compute_product() * col;
             Vertex final_v = to_vertex(final);
-            printf("%f %f %f\n ", final_v.x_, final_v.y_, final_v.z_);
+            cout << final_v.x_ << ' ' << final_v.y_ << ' ' << final_v.z_ << "\n";
         }
+
+        // Newline formatting
         printf("\n");
     }
 }
