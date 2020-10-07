@@ -5,7 +5,8 @@
 #include "../Eigen/Dense"
 #include <math.h>
 
-/* This header file defines the Transformation class and
+/* 
+ * This header file defines the Transformation class and
  * the corresponding functions to create transformation
  * matrices
  */

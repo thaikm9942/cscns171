@@ -172,7 +172,7 @@ void print_transformations(vector<Labeled_Object> final_objs) {
 // Main function
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        printf("Usage: ./my_prog <filename1.txt>\n");
+        printf("Usage: ./transform <filename1.txt>\n");
     }
     else {
         // Initialize filestream

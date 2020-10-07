@@ -6,12 +6,17 @@
 ###############################################################################
 CC = g++
 FLAGS = -g
+
+# The following line is a relative directory reference that assumes the Eigen
+# folder--which your program will depend on--is located one directory above the
+# directory that contains this Makefile.
+INCLUDE = -I../
 SOURCES = *.cpp
 
-EXENAME = parse_object
+EXENAME = ppm_test
 
 all: $(SOURCES)
-	$(CC) $(FLAGS) -o $(EXENAME) $(SOURCES)
+	$(CC) $(FLAGS) -o $(EXENAME) $(INCLUDE) $(SOURCES)
 
 clean:
 	rm -f *.o $(EXENAME)

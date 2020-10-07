@@ -8,6 +8,12 @@
 using namespace Eigen;
 using namespace std;
 
+/* 
+ * This header file defines the Vertex, Face and Object classes, which
+ * will be used to represent .obj files, and includes a few functions
+ * on Object objects
+ */
+
 // This class represents a vertex with x, y, z and w homogeneous float coordinates 
 class Vertex {
     public:
