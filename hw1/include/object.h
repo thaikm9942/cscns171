@@ -2,7 +2,10 @@
 #define __OBJECT_H__
 
 #include <vector>
+#include <set>
+#include <tuple>
 #include "../include/transform.h"
+#include "../include/pixel.h"
 
 using namespace std;
 
@@ -30,6 +33,16 @@ class Vertex {
 
         // Print text representing the Vertex object
         void print_vertex();
+
+        // Converts from homogenous coordinates to Cartesian coordinates by dividing
+        // all coordinates by w
+        void to_cartesian();
+
+        // Checks if a NDC coordinate is contained within the perspective cube
+        bool is_contained();
+
+        // Converts a vertex in world space to a vertex in screen space
+        Vertex to_screen_coordinates(int xres, int yres);
 };
 
 // Default NULL_VERTEX to mark the start of a vector of Vertex objects since vertices are 1-indexed
@@ -78,6 +91,14 @@ class Object {
 
         // Print text representing the Object object
         void print_object();
+
+        // Return the screen coordinates of the corresponding object
+        // by mapping all [-1, 1] x [-1, 1] coordinates to
+        // [0, yres] x [0, xres]
+        vector<Vertex> get_screen_coordinates(int xres, int yres);
+
+        // Return a set of pixels to be drawn for the given object
+        set<tuple<int, int>> get_pixels(int xres, int yres);
 };
 
 // TODO: Create Labeled_Object class with function find_object_with_label
@@ -96,5 +117,9 @@ struct Labeled_Object {
 // This function returns the final vertices of the object after applying
 // the corresponding Transformation to the current object's vertices
 vector<Vertex> get_transformed_vertices(Object obj);
+
+// This function applies a specific transformation matrix to the
+// vertices of an object and returns the final vertices
+vector<Vertex> get_transformed_vertices(Object obj, Matrix4d transform);
 
 #endif // #ifndef __OBJECT_H__

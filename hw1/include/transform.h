@@ -3,7 +3,6 @@
 
 #include <vector>
 #include "../Eigen/Dense"
-#include <math.h>
 #include <iostream>
 #include <fstream>
 

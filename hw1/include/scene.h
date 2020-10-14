@@ -9,6 +9,7 @@
  * will be used to represent the scene and space we are drawing Objects in
  */
 
+// This class defines the paramters needed for a perspective projection matrix
 class Perspective {
     // Perspective parameters
     double n_, f_, l_, r_, t_, b_;
@@ -28,6 +29,7 @@ class Perspective {
         void print_perspective();
 };
 
+// This class defines the orientation and position of the camera
 class Camera {
     // Camera position in world space
     double p_[3];
@@ -50,23 +52,26 @@ class Camera {
         }
 
         // Computes the transformation matrix representing the camera
-        Transformation compute_camera_matrix();
+        Transformation compute_camera_transform();
 
         // Prints the text representing a Camera object
         void print_camera();
 };
 
+// This class defines the scene that depicts how we view the object.
+// Each scene includes a camera position, the perspective view
+// and the list of objects to be drawn.
 class Scene {
     Camera cam_;
-    Perspective perp_;
+    Perspective persp_;
     vector<Labeled_Object> objs_;
 
     public:
         // Default constructor
-        Scene() : cam_(), perp_(), objs_() {}
+        Scene() : cam_(), persp_(), objs_() {}
 
         // Constructor given a Camera and Perspective object
-        Scene(Camera cam, Perspective perp) : cam_(cam), perp_(perp), objs_() {}
+        Scene(Camera cam, Perspective persp) : cam_(cam), persp_(persp), objs_() {}
 
         // Add a labeled object to the scene given an object and its label
         void add_labeled_object(Object obj, string label);
@@ -76,6 +81,15 @@ class Scene {
 
         // Prints the text representing a Scene object
         void print_scene();
-};
 
+        // Apply all transformations included in the scene to obtain the final NDC coordinates
+        void apply_transformations();
+
+        // Only applicable when the vertices in the objects are NDC coordinates. Convert
+        // the NDC coordinates of each object to screen coordinates
+        void get_screen_coordinates(int xres, int yres);
+
+        // Return a set of pixels to be drawn using each object's screen coordinates
+        set<tuple<int, int>> get_pixels(int xres, int yres);
+};
 #endif // #ifndef __SCENE_H__

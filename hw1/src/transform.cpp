@@ -1,4 +1,5 @@
 #include "../include/transform.h"
+#include <math.h>
 
 //////////////////////////////
 ///    HELPER FUNCTIONS    ///
@@ -56,7 +57,7 @@ Matrix4d create_scaling_matrix(double v[3]) {
 }
 
 //////////////////////////////
-///     MEMBER FUNCTIONS   ///
+///     CLASS FUNCTIONS   ///
 //////////////////////////////
 
 void Transformation::add_rotation(double u[3], double rad) {

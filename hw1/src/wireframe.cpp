@@ -1,28 +1,12 @@
-#include "../include/transform.h"
 #include "../include/parser.h"
-#include "../include/object.h"
+#include "../include/scene.h"
 #include <string.h>
 #include <stdlib.h>
-
-//////////////////////////////
-///    HELPER FUNCTIONS    ///
-//////////////////////////////
-
-// Find and return (a copy of) the object with the correct label
-Labeled_Object find_object_with_label(vector<Labeled_Object> elems, string label) 
-{
-    for (int i = 0; i < elems.size(); i++) {
-        Labeled_Object elem = elems[i];
-        if (elem.label.compare(label) == 0) {
-            return elem;
-        }
-    }
-    throw "Object with label not found";
-}
+#include <map>
 
 // Main function
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
+    if (argc != 4) {
         printf("Usage: ./wireframe <scene_description_file.txt> xres yres\n");
     }
     else {
@@ -37,11 +21,19 @@ int main(int argc, char* argv[]) {
             cout << "Error opening file\n";
         }
         else { 
-            vector<Labeled_Object> untransformed;
+            // Store the width and height of the pixel grid
+            int width = atoi(argv[2]);
+            int height = atoi(argv[3]);
+
+            // Initialize a map to store label with its associated Object
+            map<string, Object> untransformed;
+
+            // Initialize scene
             Scene scene;
             string line;
+
+            // Parsing text and loading all data into their appropriate data structures
             while (getline(ifs, line)) {
-                fprintf(stderr, "line: %s\n", line.c_str());
                 vector<string> tokens = strsplit(line, ' ');
 
                 // If there's only 1 token and the only token matches "camera:", then
@@ -58,10 +50,8 @@ int main(int argc, char* argv[]) {
                         // Creates filename by appending the correct data path
                         string filename = string("data/").append(tokens[1]);
 
-                        // Creates the labeled object
-                        Labeled_Object l_obj = {tokens[0], create_object(filename.c_str())};
-
-                        untransformed.push_back(l_obj);
+                        // Creates the labeled object with the associated label
+                        untransformed[tokens[0]] = create_object(filename.c_str());
                     }
                 }
                 // If the line does not start with "objects:", then the next few lines contain 
@@ -70,17 +60,42 @@ int main(int argc, char* argv[]) {
                     string label = tokens[0];
                     // Pass in the filestream to parse the transformations for the labeled object
                     Transformation t = create_transformation(ifs);
-                    Labeled_Object elem = find_object_with_label(untransformed, label);
-                    elem.obj.transform = t;
-                    scene.add_labeled_object(elem);
+                    Object obj = untransformed[label];
+                    obj.transform = t;
+                    scene.add_labeled_object(obj, label);
                 }  
             }
 
-            // This line is used to print out the entire scene
-            // and is used for debugging
-            scene.print_scene();
+            // Apply all transformations to the scene
+            scene.apply_transformations();
+
+            // Return pixels to be output into a .ppm file
+            set<tuple<int, int>> pixels = scene.get_pixels(width, height);
+            
+            // Prints that this is a PPM file
+            cout << "P3\n";
+
+            // Prints xres and yres
+            cout << width << ' ' << height << "\n";
+
+            // Prints the max intensity
+            cout << MAX_INTENSITY << "\n";
+
+            // Iterate through all rows and columns and draw the pixels
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    // If the current pixel in the grid is found in the set of
+                    // of pixels to be drawn, then draw it using a WHITE color
+                    if(pixels.find(tuple<int, int>(x, y)) != pixels.end()) {
+                        cout << WHITE.r_ << ' ' << WHITE.g_ << ' ' << WHITE.b_ << "\n";
+
+                    }
+                    // Else, draw it with BLACK color
+                    else {
+                        cout << BLACK.r_ << ' ' << BLACK.g_ << ' ' << BLACK.b_ << "\n";                 
+                    }
+                }
+            }
         }
-
-
     }
 }
