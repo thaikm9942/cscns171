@@ -82,3 +82,8 @@ Matrix4d Transformation::compute_product() {
 
     return prod;
 }
+
+void Transformation::print_transformation() {
+    Matrix4d prod = compute_product();
+    cerr << prod << endl;
+}

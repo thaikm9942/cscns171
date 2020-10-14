@@ -5,20 +5,9 @@
 ///    HELPER FUNCTIONS    ///
 //////////////////////////////
 
-// String splitting function using vector<string> as a storage for the tokens
-vector<string> strsplit(string &s, char delim) {
-    vector<string> toks;
-    istringstream iss(s);
-    string item;
-    while (getline(iss, item, delim)) {
-        toks.push_back(item);
-    }
-    return toks;
-}
-
 // This function returns a graphical Object from a successfully
 // opened file stream
-Object create_object(ifstream &ifs) {
+Object parse_object(ifstream &ifs) {
     // Initializes the vectors containing the corresponding vertices and faces
     // of an object
     Object obj = Object();
@@ -58,15 +47,34 @@ Object create_object(ifstream &ifs) {
 ///    MAIN FUNCTIONS      ///
 //////////////////////////////
 
+// String splitting function using vector<string> as a storage for the tokens
+vector<string> strsplit(string &s, char delim) {
+    vector<string> toks;
+    istringstream iss(s);
+    string item;
+    while (getline(iss, item, delim)) {
+        toks.push_back(item);
+    }
+    return toks;
+}
+
 // Get object associated with a specific .obj file
-Object get_object(const char* filename) {
+Object create_object(const char* filename) {
     ifstream obj_ifs;
     
     // Opens a new read stream for the object file
     obj_ifs.open(filename, ifstream::in);
 
+    Object obj;
+    if (!obj_ifs.is_open()) {
+        throw "Error opening .obj file\n";
+    }
+    else {
+        obj = parse_object(obj_ifs);
+    }
+
     // Returns the object data associated with the open stream
-    return create_object(obj_ifs);
+    return obj;
 }
 
 // Create a corresponding transformation matrix from an opened
@@ -102,4 +110,67 @@ Transformation create_transformation(ifstream& ifs) {
         }
     }
     return ts;
+}
+
+// Create the corresponding camera and perspective objects from an opened filestream
+// and construct a scene with no objects and the given camera and perspective settings
+Scene create_camera_and_perspective(ifstream &ifs) {
+    string line;
+
+    // Holder variables for camera parameters
+    double p[3], o[3];
+    double angle;
+
+    // Holder variables for perspective parameters
+    double n, f, l, r, t, b;
+
+    // If the line is empty, we have reached the end of the camera/perspective block,
+    // exit the function and return the empty scene with corresponding camera and
+    // perspective setup
+    while (getline(ifs, line) && !line.empty()) {
+        // We parse the tokens to identify
+        vector<string> tokens = strsplit(line, ' ');
+        
+        // Parse the info type
+        string info_type = tokens[0];
+        // Parses information based on the information type
+        if (info_type.compare(string("position")) == 0) {
+            p[0] = strtod(tokens[1].c_str(), NULL);
+            p[1] = strtod(tokens[2].c_str(), NULL); 
+            p[2] = strtod(tokens[3].c_str(), NULL);
+        }
+        else if (info_type.compare(string("orientation")) == 0) {
+            o[0] = strtod(tokens[1].c_str(), NULL);
+            o[1] = strtod(tokens[2].c_str(), NULL); 
+            o[2] = strtod(tokens[3].c_str(), NULL);
+            angle = strtod(tokens[4].c_str(), NULL);
+        }
+        else if (info_type.compare(string("near")) == 0) {
+            n = strtod(tokens[1].c_str(), NULL);
+        }
+        else if (info_type.compare(string("far")) == 0) {
+            f = strtod(tokens[1].c_str(), NULL);         
+        }
+        else if (info_type.compare(string("left")) == 0) {
+            l = strtod(tokens[1].c_str(), NULL);       
+        }
+        else if (info_type.compare(string("right")) == 0) {
+            r = strtod(tokens[1].c_str(), NULL); 
+        }
+        else if (info_type.compare(string("top")) == 0) {
+            t = strtod(tokens[1].c_str(), NULL);
+        }
+        else if (info_type.compare(string("bottom")) == 0) {
+            b = strtod(tokens[1].c_str(), NULL);      
+        }
+        else {
+            throw "Data does not contain information relating to camera or perspective\n";
+        }
+    }
+
+    // Initialize the Camera and Perspective objects
+    Camera cam = Camera(p, o, angle);
+    Perspective perp = Perspective(n, f, l, r, t, b);
+
+    return Scene(cam, perp);
 }

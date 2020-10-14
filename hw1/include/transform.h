@@ -4,6 +4,8 @@
 #include <vector>
 #include "../Eigen/Dense"
 #include <math.h>
+#include <iostream>
+#include <fstream>
 
 /* 
  * This header file defines the Transformation class and
@@ -39,6 +41,9 @@ class Transformation {
         // Computes the total transformation, which is the product of all transformations
         // by left-multiplying each transformation in order
         Matrix4d compute_product();
+
+        // Print text representing the final transformation
+        void print_transformation();
 };
 
 #endif // #ifndef __TRANSFORM_H__

@@ -11,6 +11,7 @@ using namespace std;
  * will be used to represent .obj files, and includes a few functions
  * on Object objects
  */
+
 // This class represents a vertex with x, y, z and w homogeneous float coordinates 
 class Vertex {
     public:
@@ -26,6 +27,9 @@ class Vertex {
         // Constructor that takes in a given homogenous (x, y, z, w) coordinate
         // to form a vertex.
         Vertex(double x, double y, double z, double w) : x_(x), y_(y), z_(z), w_(w) {}
+
+        // Print text representing the Vertex object
+        void print_vertex();
 };
 
 // Default NULL_VERTEX to mark the start of a vector of Vertex objects since vertices are 1-indexed
@@ -41,6 +45,9 @@ class Face {
         // Constructor that takes in 3 integers corresponding to
         // the 3 indices of vertices that form the face
         Face(int i1, int i2, int i3) : i1_(i1), i2_(i2), i3_(i3) {}
+        
+        // Print text representing the Face object
+        void print_face();
 };
 
 /* This class represents a graphics object which contains the vertices,
@@ -68,6 +75,26 @@ class Object {
         // list of the object
         void add(Vertex v);
         void add(Face f);
+
+        // Print text representing the Object object
+        void print_object();
 };
+
+// TODO: Create Labeled_Object class with function find_object_with_label
+// A struct containing an obj and its associated label
+
+// Labeled_Object struct
+struct Labeled_Object {
+    string label;
+    Object obj;
+};
+
+//////////////////////////////
+///       FUNCTIONS        ///
+//////////////////////////////
+
+// This function returns the final vertices of the object after applying
+// the corresponding Transformation to the current object's vertices
+vector<Vertex> get_transformed_vertices(Object obj);
 
 #endif // #ifndef __OBJECT_H__
