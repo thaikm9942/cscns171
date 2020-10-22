@@ -15,24 +15,44 @@ Object parse_object(ifstream &ifs) {
 
     // Variables to store the tokens from the file
     // The "type" of data, either a face or a vertex
-    char type;
+    string type;
     
-    // The corrresponding vertex coordinates or vertex indices. We 
+    // The corresponding vertex coordinates or vertex indices. We 
     // keep these as strings to convert to either floats or ints later
     string n1, n2, n3;
 
     // Process all tokens for either a vertex or a face line-by-line
     while (ifs >> type >> n1 >> n2 >> n3) {
         // If the first character of the line is 'v', then process the
-        // strings as vertex float coordinates 
-        if (type == 'v') {
+        // strings as vertex double coordinates 
+        if (type.compare(string("v")) == 0) {
             Vertex v = Vertex(strtod(n1.c_str(), NULL), strtod(n2.c_str(), NULL), strtod(n3.c_str(), NULL));
             obj.add(v);
         }
+        // If the first character of the line is 'vn', the process the
+        // strings as vertex normal double coordinates
+        else if (type.compare(string("vn")) == 0) {
+            Vertex vn = Vertex(strtod(n1.c_str(), NULL), strtod(n2.c_str(), NULL), strtod(n3.c_str(), NULL));
+            obj.add_normal(vn);
+        }
         // If the first character is 'f' instead, then process the strings
-        // as the vertex integer indices
-        else if (type == 'f') {
-            Face f = Face(atoi(n1.c_str()), atoi(n2.c_str()), atoi(n3.c_str()));
+        // as the vertex and vertex normal integer indices
+        else if (type.compare(string("f")) == 0) {
+            int i[3];
+            int n[3];
+
+            // Indices of vertex
+            i[0] = (int) n1[0] - '0';
+            i[1] = (int) n2[0] - '0';
+            i[2] = (int) n3[0] - '0';
+
+            // Indices of vertex normal
+            n[0] = (int) n1[n1.length() - 1] - '0';
+            n[1] = (int) n2[n2.length() - 1] - '0';
+            n[2] = (int) n3[n3.length() - 1] - '0';
+
+            // Index of vertex normal
+            Face f = Face(i, n);
             obj.add(f);
         }
         else {
@@ -77,6 +97,92 @@ Object create_object(const char* filename) {
     return obj;
 }
 
+vector<Light> create_lights(ifstream &ifs) {
+    string line;
+    
+    // Initialize storage for all lights
+    vector<Light> ls;
+
+    while (getline(ifs, line) && !line.empty()) {
+        // Initializes storage for all light source information
+        double l[3], c[3];
+        double k;
+
+        // We parse the tokens to identify
+        vector<string> tokens = strsplit(line, ' ');
+        
+        // Parse the info type
+        string info_type = tokens[0];
+
+        if (info_type.compare(string("light")) == 0) {
+            l[0] = strtod(tokens[1].c_str(), NULL);
+            l[1] = strtod(tokens[2].c_str(), NULL); 
+            l[2] = strtod(tokens[3].c_str(), NULL);
+
+            // Skips 1 to account for commas
+            c[0] = strtod(tokens[5].c_str(), NULL);
+            c[1] = strtod(tokens[6].c_str(), NULL); 
+            c[2] = strtod(tokens[7].c_str(), NULL);
+
+            // Skips 1 again to account for commas
+            k = strtod(tokens[9].c_str(), NULL);
+            
+            // Create a Light object to be added to our list of lights
+            ls.push_back(Light(l, c, k));
+        }
+        else {
+            throw "Text block does not contain light source data";
+        }
+    }
+    return ls;
+}
+
+Material create_material(ifstream &ifs) {
+    string line;
+    Material m;
+
+    // Initializes storage for all material properties
+    double a[3], d[3], s[3];
+    double p;
+
+    while (getline(ifs, line) && !line.empty()) {
+        // We parse the tokens to identify
+        vector<string> tokens = strsplit(line, ' ');
+        
+        // Parse the info type
+        string info_type = tokens[0];
+
+        // Parses information based on the information type
+        if (info_type.compare(string("ambient")) == 0) {
+            a[0] = strtod(tokens[1].c_str(), NULL);
+            a[1] = strtod(tokens[2].c_str(), NULL); 
+            a[2] = strtod(tokens[3].c_str(), NULL);
+        }
+        else if (info_type.compare(string("diffuse")) == 0) {
+            d[0] = strtod(tokens[1].c_str(), NULL);
+            d[1] = strtod(tokens[2].c_str(), NULL); 
+            d[2] = strtod(tokens[3].c_str(), NULL);
+        }
+        else if (info_type.compare(string("specular")) == 0) {
+            s[0] = strtod(tokens[1].c_str(), NULL);
+            s[1] = strtod(tokens[2].c_str(), NULL); 
+            s[2] = strtod(tokens[3].c_str(), NULL);
+        }
+        else if (info_type.compare(string("shininess")) == 0) {
+            p = strtod(tokens[1].c_str(), NULL);
+            // Break out of the current stream to move on to reading
+            // the transformation block of text
+            break;
+        }
+        else {
+            throw "Text block does not contain ambient, diffuse, specular reflectance or shininess";
+        }
+    }
+
+    m = Material(a, d, s, p);
+    return m;
+}
+
 // Create a corresponding transformation matrix from an opened
 // filestream
 Transformation create_transformation(ifstream& ifs) {
@@ -112,11 +218,13 @@ Transformation create_transformation(ifstream& ifs) {
     return ts;
 }
 
-// Create the corresponding camera and perspective objects from an opened filestream
-// and construct a scene with no objects and the given camera and perspective settings
-Scene create_camera_and_perspective(ifstream &ifs) {
+/* Create the corresponding Scene by parsing the camera, perspective and light text blocks 
+ * from an opened filestream. This scene has no Objects and contains the parsed camera, perspective,
+ * and light settings.
+ */
+Scene create_scene(ifstream &ifs) {
     string line;
-
+    
     // Holder variables for camera parameters
     double p[3], o[3];
     double angle;
@@ -168,9 +276,12 @@ Scene create_camera_and_perspective(ifstream &ifs) {
         }
     }
 
+    // Return the vector of light sources
+    vector<Light> ls = create_lights(ifs);
+
     // Initialize the Camera and Perspective objects
     Camera cam = Camera(p, o, angle);
     Perspective perp = Perspective(n, f, l, r, t, b);
 
-    return Scene(cam, perp);
+    return Scene(cam, perp, ls);
 }

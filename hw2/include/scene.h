@@ -2,7 +2,6 @@
 #define __SCENE_H__
 
 #include "./object.h"
-#include "./transform.h"
 
 /* 
  * This header file defines the Camera, Perspective and Scene classes, which
@@ -60,19 +59,21 @@ class Camera {
 
 // This class defines the scene that depicts how we view the object.
 // Each scene includes a camera position, the perspective view
-// and the list of objects to be drawn.
+// the list of objects to be drawn, and the light sources.
 class Scene {
     Camera cam_;
     Perspective persp_;
     vector<Labeled_Object> objs_;
+    vector<Light> ls_;
 
     public:
         // Default constructor
-        Scene() : cam_(), persp_(), objs_() {}
+        Scene() : cam_(), persp_(), objs_(), ls_() {}
 
         // Constructor given a Camera and Perspective object
-        Scene(Camera cam, Perspective persp) : cam_(cam), persp_(persp), objs_() {}
+        Scene(Camera cam, Perspective persp, vector<Light> ls) : cam_(cam), persp_(persp), objs_(), ls_(ls) {}
 
+        // Set the light sources of the Scene object
         // Add a labeled object to the scene given an object and its label
         void add_labeled_object(Object obj, string label);
 

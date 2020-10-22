@@ -4,8 +4,8 @@
 #include <vector>
 #include <set>
 #include <tuple>
-#include "../include/transform.h"
-#include "../include/pixel.h"
+#include "./transform.h"
+#include "./light.h"
 
 using namespace std;
 
@@ -48,44 +48,63 @@ class Vertex {
 // Default NULL_VERTEX to mark the start of a vector of Vertex objects since vertices are 1-indexed
 const Vertex NULL_VERTEX = Vertex(INFINITY, INFINITY, INFINITY);
 
-/* This class represents a face containing 3 integers representing 
- * the 3 1-indexed vertices forming that face.
+/* This class represents a face containing 2 sets of 3 integers, 1 representing 
+ * the 3 1-indexed vertices forming that face and the other representing
+ * the 3 1-indexed surface normals of each vertex that forms the face.
  */ 
 class Face {
     public:
-        int i1_, i2_, i3_;
+        // Indices of the vertices that form the face
+        int i_[3];
+
+        // Indices of the vertex normals for each vertex
+        int n_[3];
         
+        // Constructor that only takes in 3 integers corresponding to
+        // the 3 indices of vertices that form the face. No normal
+        // indices are passed in
+        Face(int i[3]) : n_() {
+            i_[0] = i[0], i_[1] = i[1], i_[2] = i[2];
+        }
+
         // Constructor that takes in 3 integers corresponding to
-        // the 3 indices of vertices that form the face
-        Face(int i1, int i2, int i3) : i1_(i1), i2_(i2), i3_(i3) {}
+        // the 3 indices of vertices that form the face and their
+        // corresponding vertex normal indices
+        Face(int i[3], int n[3]) : Face(i) {
+            n_[0] = n[0], n_[1] = n[1], n_[2] = n[2];
+        }
         
         // Print text representing the Face object
         void print_face();
 };
 
-/* This class represents a graphics object which contains the vertices,
- * the faces of an object, and the transformations to be applied to all
- * vertices
+/* This class represents a graphics object which contains the verticesm
+ * the vertex normals, the faces of an object, and the transformations 
+ * to be applied to all vertices
  */
 class Object {
     public:
-        vector<Vertex> vertices;
-        vector<Face> faces;
-        Transformation transform;
+        vector<Vertex> vs_;
+        vector<Vertex> vns_;
+        vector<Face> fs_;
+        Transformation t_;
+        Material m_;
+
         // Default constructor that initializes empty lists of vertices,
         // faces and transforms for the object
-        Object() : vertices(), faces(), transform() {}
+        Object() : vs_(), vns_(), fs_(), t_(), m_() {}
 
         // Constructor that takes in only a list of vertices and faces that
         // forms the object. The list of transformation matrices are initialized,
         // but left empty.
-        Object(vector<Vertex> vtx, vector<Face> fs) : vertices(vtx), faces(fs), transform() {}
+        Object(vector<Vertex> vs, vector<Vertex> vns, vector<Face> fs) : vs_(vs), vns_(vns), fs_(fs), t_(), m_() {}
 
         // Copy constructor for an Object class
-        Object(const Object& other) : vertices(other.vertices), faces(other.faces), transform(other.transform) {}
+        Object(const Object& other) : vs_(other.vs_), vns_(other.vns_), fs_(other.fs_), t_(other.t_), m_(other.m_)  {}
 
-        // Functions to add a vertex, a face or a transformation matrix to the corresponding
+        // Functions to add a vertex normal, vertex, a face or a transformation matrix to the corresponding
         // list of the object
+        void add_normal(Vertex vn);
         void add(Vertex v);
         void add(Face f);
 

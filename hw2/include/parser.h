@@ -14,9 +14,18 @@ Object create_object(const char* filename);
 // the corresponding transformation object
 Transformation create_transformation(ifstream &ifs);
 
-// This function parses a block of text containing the camera information and the perspective
-// projection matrix parameters and returns an empty scene with camera and perspective setting
-Scene create_camera_and_perspective(ifstream &ifs);
+// This function parses block sof text containing the camera information, the perspective
+// projection matrix parameters, and the light sources parameters
+// and returns an empty Scene with the given camera, perspective, and light source settings
+Scene create_scene(ifstream &ifs);
+
+// This function parse a block of text containing information about the light sources
+// returns a vector of Light objects with the correct parameters
+vector<Light> create_lights(ifstream &ifs);
+
+// THis function parse a block of text containing information about the material
+// properties of an Object and return a Material object with the correct parameters
+Material create_material(ifstream &ifs);
 
 // This function splits the string by the delimiter into a vector<string> of tokens 
 vector<string> strsplit(string &s, char delim);

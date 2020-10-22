@@ -49,31 +49,41 @@ Vertex Vertex::to_screen_coordinates(int xres, int yres) {
 }
 
 void Face::print_face() {
-    printf("v%d v%d v%d\n", i1_, i2_, i3_);
+    printf("v%d v%d v%d\n", i_[0], i_[1], i_[2]);
+    printf("vn%d vn%d vn%d\n", n_[0], n_[1], n_[2]);
     printf("\n");
 }
 
+void Object::add_normal(Vertex vn) {
+    vns_.push_back(vn);
+}
+
 void Object::add(Vertex v) { 
-    vertices.push_back(v); 
+    vs_.push_back(v); 
 }
 
 void Object::add(Face f) { 
-    faces.push_back(f); 
+    fs_.push_back(f); 
 }
 
 void Object::print_object() {
     printf("vertices:\n");
-    for(int i = 0; i < vertices.size(); i++) {
-        vertices[i].print_vertex();
+    for(int i = 0; i < vs_.size(); i++) {
+        vs_[i].print_vertex();
     }
 
     printf("faces:\n");
-    for(int i = 0; i < faces.size(); i++) {
-        faces[i].print_face();
+    for(int i = 0; i < fs_.size(); i++) {
+        fs_[i].print_face();
     }
 
     printf("transformation:\n");
-    transform.print_transformation();
+    t_.print_transformation();
+
+    printf("material:\n");
+    m_.print_material();
+
+    printf("\n");
 }
 
 vector<Vertex> Object::get_screen_coordinates(int xres, int yres) {
@@ -82,8 +92,8 @@ vector<Vertex> Object::get_screen_coordinates(int xres, int yres) {
     screen_vertices.push_back(NULL_VERTEX);
 
     // For each NDC vertex, convert it to a screen vertex
-    for(int i = 1; i < vertices.size(); i++) {
-        screen_vertices.push_back(vertices[i].to_screen_coordinates(xres, yres));
+    for(int i = 1; i < vs_.size(); i++) {
+        screen_vertices.push_back(vs_[i].to_screen_coordinates(xres, yres));
     }
 
     return screen_vertices;
@@ -93,15 +103,15 @@ set<tuple<int, int>> Object::get_pixels(int xres, int yres) {
     // Initialize empty (x, y) set
     set<tuple<int,int>> pixels;
 
-    for(int i = 0; i < faces.size(); i++) {
+    for(int i = 0; i < fs_.size(); i++) {
         // Obtains the face
-        Face f = faces[i];
+        Face f = fs_[i];
 
         // Obtains the vertices corresponding to the indices
         // in the Face object
-        Vertex v1 = vertices[f.i1_];
-        Vertex v2 = vertices[f.i2_];
-        Vertex v3 = vertices[f.i3_];
+        Vertex v1 = vs_[f.i_[0]];
+        Vertex v2 = vs_[f.i_[1]];
+        Vertex v3 = vs_[f.i_[2]];
 
         // Add the pixels necessary to draw lines between 
         // these 3 vertices pairwase using generalized Bresenham 
@@ -137,10 +147,10 @@ vector<Vertex> get_transformed_vertices(Object obj) {
     transformed_vertices.push_back(NULL_VERTEX);
 
     // Applies transformation to all vertices of the object
-    for (int i = 1; i < obj.vertices.size(); i++) {
-        Vertex v = obj.vertices[i];
+    for (int i = 1; i < obj.vs_.size(); i++) {
+        Vertex v = obj.vs_[i];
         Vector4d col = to_col_vector(v);
-        Vector4d final = obj.transform.compute_product() * col;
+        Vector4d final = obj.t_.compute_product() * col;
         Vertex final_v = to_vertex(final);
         final_v.to_cartesian();
         transformed_vertices.push_back(final_v);
@@ -154,8 +164,8 @@ vector<Vertex> get_transformed_vertices(Object obj, Matrix4d transform) {
     transformed_vertices.push_back(NULL_VERTEX);
 
     // Applies transformation to all vertices of the object
-    for (int i = 1; i < obj.vertices.size(); i++) {
-        Vertex v = obj.vertices[i];
+    for (int i = 1; i < obj.vs_.size(); i++) {
+        Vertex v = obj.vs_[i];
         Vector4d col = to_col_vector(v);
         Vector4d final = transform * col;
         Vertex final_v = to_vertex(final);

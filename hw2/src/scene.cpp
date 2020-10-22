@@ -49,9 +49,14 @@ void Camera::print_camera() {
 void Scene::print_scene() {
     cam_.print_camera();
     persp_.print_perspective();
-    for(int i = 0; i < objs_.size(); i++) {
+    for (int i = 0; i < objs_.size(); i++) {
         printf("%s\n", objs_[i].label.c_str());
         objs_[i].obj.print_object();
+        objs_[i].obj.m_.print_material();
+    }
+    for (int i = 0; i < ls_.size(); i++) {
+        printf("light%d\n", i);
+        ls_[i].print_light();
     }
 }
 
@@ -69,24 +74,24 @@ void Scene::apply_transformations() {
     for (int i = 0; i < objs_.size(); i++) {
         // Set the vertices of each object to be the new vertices
         // after applying all GEOMETRIC TRANSFORMATIONS to the object
-        objs_[i].obj.vertices = get_transformed_vertices(objs_[i].obj);
+        objs_[i].obj.vs_ = get_transformed_vertices(objs_[i].obj);
 
         // Convert all vertices from world space to camera space
         // by applying the inverse camera transform C^(-1) to
         // each vertex
         Matrix4d cam_transform = cam_.compute_camera_transform().compute_product();
-        objs_[i].obj.vertices = get_transformed_vertices(objs_[i].obj, cam_transform.inverse());
+        objs_[i].obj.vs_ = get_transformed_vertices(objs_[i].obj, cam_transform.inverse());
 
         // Transform all vertices from camera space to NDC coordinates
         // by applying the perspective transform  
-        objs_[i].obj.vertices = get_transformed_vertices(objs_[i].obj, persp_.compute_perspective_matrix());
+        objs_[i].obj.vs_ = get_transformed_vertices(objs_[i].obj, persp_.compute_perspective_matrix());
     }
 }
 
 void Scene::get_screen_coordinates(int xres, int yres) {
     // Iterate through all Labeled_Objects
     for (int i = 0; i < objs_.size(); i++) {
-        objs_[i].obj.vertices = objs_[i].obj.get_screen_coordinates(xres, yres);
+        objs_[i].obj.vs_ = objs_[i].obj.get_screen_coordinates(xres, yres);
     }
 }
 
