@@ -17,7 +17,8 @@ Transformation create_transformation(ifstream &ifs);
 // This function parses block sof text containing the camera information, the perspective
 // projection matrix parameters, and the light sources parameters
 // and returns an empty Scene with the given camera, perspective, and light source settings
-Scene create_scene(ifstream &ifs);
+// and the given resolution.
+Scene create_scene(ifstream &ifs, int xres, int yres);
 
 // This function parse a block of text containing information about the light sources
 // returns a vector of Light objects with the correct parameters

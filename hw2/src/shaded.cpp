@@ -4,6 +4,15 @@
 #include <stdlib.h>
 #include <map>
 
+// Max intensity for any RGB_Color value
+const int MAX_INTENSITY = 255;
+
+void run_shading(Scene scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer, int mode) {
+    if (mode == 0) {
+        scene_gourad_shading(scene, pixels, buffer);
+    }
+}
+
 // Main function
 int main(int argc, char* argv[]) {
     if (argc != 5) {
@@ -21,8 +30,10 @@ int main(int argc, char* argv[]) {
             cout << "Error opening file\n";
         }
         else { 
-            // Store the width and height of the pixel grid
+            // Number of columns in pixel grid - xres
             int width = atoi(argv[2]);
+
+            // Number of rows in pixel grid - yres
             int height = atoi(argv[3]);
             int mode = atoi(argv[4]);
 
@@ -40,7 +51,7 @@ int main(int argc, char* argv[]) {
                 // If there's only 1 token and the only token matches "camera:", then
                 // create the scene with camera and perspective setup
                 if (tokens.size() == 1 && tokens[0].compare(string("camera:")) == 0)  {
-                    scene = create_scene(ifs);
+                    scene = create_scene(ifs, width, height);
                 }
  
                 // If the line starts with "objects:", then the
@@ -73,16 +84,33 @@ int main(int argc, char* argv[]) {
 
             }
 
-            // Prints the scene
             // scene.print_scene();
 
-            /*
-            // Apply all transformations to the scene
+            // Initializes our rasterization grid used to do buffering
+            vector<vector<Color>> pixels(height);
+            for (int i = 0; i < pixels.size(); i++) {
+                pixels[i] = vector<Color>(width);
+            }
+
+            // Initializes a buffer grid with the same dimensions as our raster grid
+            vector<vector<double>> buffer(height);
+            for (int i = 0; i < buffer.size(); i++) {
+                buffer[i] = vector<double>(width);
+                for (int j = 0; j < buffer[i].size(); j++) {
+                    buffer[i][j] = INFINITY;
+                }
+            }
+
+            // Apply all geometric transformations to the scene, our 
+            // vertices are still in world-space coordinates
             scene.apply_transformations();
 
-            // Return pixels to be output into a .ppm file
-            set<tuple<int, int>> pixels = scene.get_pixels(width, height);
-            
+            run_shading(scene, pixels, buffer, mode);
+
+            /*
+             * The below code section outputs the PPM file
+             */
+
             // Prints that this is a PPM file
             cout << "P3\n";
 
@@ -95,19 +123,10 @@ int main(int argc, char* argv[]) {
             // Iterate through all rows and columns and draw the pixels
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
-                    // If the current pixel in the grid is found in the set of
-                    // of pixels to be drawn, then draw it using a WHITE color
-                    if(pixels.find(tuple<int, int>(x, y)) != pixels.end()) {
-                        cout << WHITE.r_ << ' ' << WHITE.g_ << ' ' << WHITE.b_ << "\n";
-
-                    }
-                    // Else, draw it with BLACK color
-                    else {
-                        cout << BLACK.r_ << ' ' << BLACK.g_ << ' ' << BLACK.b_ << "\n";                 
-                    }
+                    Color c = pixels[y][x];
+                    cout <<  round(c.r_ * MAX_INTENSITY) << ' ' << round(c.g_ * MAX_INTENSITY) << ' ' << round(c.b_ * MAX_INTENSITY) << '\n';
                 }
             }
-            */
         }
     }
 }

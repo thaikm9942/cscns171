@@ -6,14 +6,18 @@
 #include <iostream>
 #include <fstream>
 
+using namespace std;
+using namespace Eigen;
+
 /* 
  * This header file defines the Transformation class and
  * the corresponding functions to create transformation
  * matrices
  */
 
-using namespace std;
-using namespace Eigen;
+//////////////////////////////
+///       CLASSES          ///
+//////////////////////////////
 
 // This class defines a transformation as a product of 
 // rotations, translations and scaling in-order

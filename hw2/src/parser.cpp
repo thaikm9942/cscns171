@@ -12,6 +12,7 @@ Object parse_object(ifstream &ifs) {
     // of an object
     Object obj = Object();
     obj.add(NULL_VERTEX);
+    obj.add_normal(NULL_VERTEX);
 
     // Variables to store the tokens from the file
     // The "type" of data, either a face or a vertex
@@ -41,15 +42,20 @@ Object parse_object(ifstream &ifs) {
             int i[3];
             int n[3];
 
+            // Splits the token even further to obtain the vertex index and vertex normal index
+            vector<string> tokens1 = strsplit(n1, '/');
+            vector<string> tokens2 = strsplit(n2, '/');
+            vector<string> tokens3 = strsplit(n3, '/');
+
             // Indices of vertex
-            i[0] = (int) n1[0] - '0';
-            i[1] = (int) n2[0] - '0';
-            i[2] = (int) n3[0] - '0';
+            i[0] = atoi(tokens1[0].c_str());
+            i[1] = atoi(tokens2[0].c_str());
+            i[2] = atoi(tokens3[0].c_str());
 
             // Indices of vertex normal
-            n[0] = (int) n1[n1.length() - 1] - '0';
-            n[1] = (int) n2[n2.length() - 1] - '0';
-            n[2] = (int) n3[n3.length() - 1] - '0';
+            n[0] = atoi(tokens1[tokens1.size() - 1].c_str());
+            n[1] = atoi(tokens2[tokens2.size() - 1].c_str());
+            n[2] = atoi(tokens3[tokens3.size() - 1].c_str());
 
             // Index of vertex normal
             Face f = Face(i, n);
@@ -222,7 +228,7 @@ Transformation create_transformation(ifstream& ifs) {
  * from an opened filestream. This scene has no Objects and contains the parsed camera, perspective,
  * and light settings.
  */
-Scene create_scene(ifstream &ifs) {
+Scene create_scene(ifstream &ifs, int xres, int yres) {
     string line;
     
     // Holder variables for camera parameters
@@ -283,5 +289,5 @@ Scene create_scene(ifstream &ifs) {
     Camera cam = Camera(p, o, angle);
     Perspective perp = Perspective(n, f, l, r, t, b);
 
-    return Scene(cam, perp, ls);
+    return Scene(cam, perp, ls, xres, yres);
 }

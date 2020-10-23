@@ -5,11 +5,23 @@
 ///    HELPER FUNCTIONS    ///
 //////////////////////////////
 
-/* This function constructs a CCW rotation matrix given a unit-vector u
+void normalize(double u[3]) {
+    double norm = sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+    u[0] = u[0] / norm;
+    u[1] = u[1] / norm;
+    u[2] = u[2] / norm;
+}
+
+/* This function constructs a CCW rotation matrix given a vector u
 * and an angle theta (in radians)
 */
 Matrix4d create_rotation_matrix(double u[3], double theta) {
+    // Normalize the given vector
+    normalize(u);
+
+    // Initialize the rotation matrix
     Matrix4d r;
+
     // Constructing the first row values
     double r11 = u[0] * u[0] + (1 - u[0] * u[0]) * cos(theta);
     double r12 = u[0] * u[1] * (1 - cos(theta)) - u[2] * sin(theta);
@@ -32,7 +44,7 @@ Matrix4d create_rotation_matrix(double u[3], double theta) {
 
     // Asserts that the product of a rotation matrix and its transpose 
     // should be the identity matrix
-    assert((r * r.transpose()).isApprox(Matrix4d::Identity(), 10e-7));
+    assert((r * r.transpose()).isApprox(Matrix4d::Identity(), 10e-8));
     return r;
 }
 

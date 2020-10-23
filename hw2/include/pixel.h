@@ -6,6 +6,10 @@
  * which are used to draw a Pixel in a given yres x xres grid
  */
 
+//////////////////////////////
+///       CLASSES          ///
+//////////////////////////////
+
 // This class represents a RGB color using 3 integer values
 class RGB_Color {  
     public:

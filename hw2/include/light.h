@@ -1,69 +1,61 @@
 #ifndef __LIGHT_H__
 #define __LIGHT_H__
 
-#include "./pixel.h"
+#include "./object.h"
 
 /* 
  * This header file defines the Light class, which is used to represent
- * a light source, its color and attenuation, and the Material class,
- * which is used to represent the different reflectance properties and 
- * the shininess of an object
+ * a light source, its color and attenuation, and the Color class, which
+ * is used to represent rgb intensity values between 0 and 1
  */
+
+//////////////////////////////
+///       CLASSES          ///
+//////////////////////////////
+
+// This class represents a Color object using 3 integer values
+class Color {  
+    public:
+        // The intensity values for the red, green, blue components
+        // of the Color
+        double r_, g_, b_;
+
+        // Default constructor 
+        Color() : r_(0.0), g_(0.0), b_(0.0) {}
+
+        // Constructor that takes in given parameters
+        Color(double r, double g, double b) : r_(r), g_(g), b_(b) {}
+};
+
 
 // This class defines the position of the light source, its color and the attenuation parameter
 class Light {
-    // Light position in world space, the RGB color of the light, and the attenuation parameter
-    double l_[3];
-    double c_[3];
-    double k_;
-
     public:
+        // Light position in world space, the RGB color of the light, and the attenuation parameter
+        Vertex l_;
+        Color c_;
+        double k_;
+
         // Default constructor
-        Light() : k_(0.0) {
-            l_[0] = 0.0, l_[1] = 0.0, l_[2] = 0.0;
-            c_[0] = 0.0, c_[1] = 0.0, c_[2] = 0.0;        
-        }
+        Light() : l_(), c_(), k_(0.0) {}
 
         // Constructor that takes in given parameters
-        Light(double l[3], double c[3], double k) : k_(k) {
-            l_[0] = l[0], l_[1] = l[1], l_[2] = l[2];
-            c_[0] = c[0], c_[1] = c[1], c_[2] = c[2];           
-        }
+        Light(double l[3], double c[3], double k) : 
+            l_(l[0], l[1], l[2]), c_(c[0], c[1], c[2]), k_(k) {}
 
         // Outputs the Light object as a string representation
         void print_light();
 };
 
-// This class defines different properties of an Object, including ambient material reflectance,
-// diffuse material reflectance, specular material reflectance, and material "shininess"
-class Material {
-    // Ambient material reflectance
-    double a_[3];
-    // Diffuse material reflectance
-    double d_[3];
-    // Specular material reflectance
-    double s_[3];
-    // Shininess of the object (or Phong exponent)
-    double p_;
+//////////////////////////////
+///       FUNCTIONS        ///
+//////////////////////////////
 
-    public:
-        // Default constructor
-        Material() : p_(0.0) { 
-            a_[0] = 0.0, a_[1] = 0.0, a_[2] = 0.0;
-            d_[0] = 0.0, d_[1] = 0.0, d_[2] = 0.0;
-            s_[0] = 0.0, s_[1] = 0.0, s_[2] = 0.0;
-        }
-
-        // Constructor that takes in given parameters.
-        Material(double a[3], double d[3], double s[3], double p) : p_(p) {
-            a_[0] = a[0], a_[1] = a[1], a_[2] = a[2];
-            d_[0] = d[0], d_[1] = d[1], d_[2] = d[2];
-            s_[0] = s[0], s_[1] = s[1], s_[2] = s[2];
-        }
-
-        // Outputs the Material object as a string representation
-        void print_material();
-};
-
+// This function runs the lighting algorithm used to compute the color
+// of a point P on an illuminated surface. The function takes in
+// a point p, a surface normal (Vertex), the material properties of the object,
+// a list of light sources, and a camera object, and returns 
+// an array of doubles representing the color value of the point P.
+Color lighting(Vertex p, Vertex n, Material mat, vector<Light> lights, double e[3]);
 
 #endif // #ifndef __LIGHT_H__

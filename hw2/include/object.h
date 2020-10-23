@@ -5,15 +5,20 @@
 #include <set>
 #include <tuple>
 #include "./transform.h"
-#include "./light.h"
 
 using namespace std;
 
 /* 
  * This header file defines the Vertex, Face and Object classes, which
  * will be used to represent .obj files, and includes a few functions
- * on Object objects
+ * on Object objects. It also contains the Material class,
+ * which is used to represent the different reflectance properties and 
+ * the shininess of an object
  */
+
+//////////////////////////////
+///       CLASSES          ///
+//////////////////////////////
 
 // This class represents a vertex with x, y, z and w homogeneous float coordinates 
 class Vertex {
@@ -34,14 +39,17 @@ class Vertex {
         // Print text representing the Vertex object
         void print_vertex();
 
-        // Converts from homogenous coordinates to Cartesian coordinates by dividing
+        // Converts from homogeneous coordinates to Cartesian coordinates by dividing
         // all coordinates by w
         void to_cartesian();
+
+        // Normalize a vertex
+        void normalize();
 
         // Checks if a NDC coordinate is contained within the perspective cube
         bool is_contained();
 
-        // Converts a vertex in world space to a vertex in screen space
+        // Converts a vertex in NDC coordinates to a vertex in screen space
         Vertex to_screen_coordinates(int xres, int yres);
 };
 
@@ -78,6 +86,37 @@ class Face {
         void print_face();
 };
 
+// This class defines different material properties of an Object, including ambient material reflectance,
+// diffuse material reflectance, specular material reflectance, and material "shininess"
+class Material {
+    public:
+        // Ambient material reflectance
+        double a_[3];
+        // Diffuse material reflectance
+        double d_[3];
+        // Specular material reflectance
+        double s_[3];
+        // Shininess of the object (or Phong exponent)
+        double p_;
+        
+        // Default constructor
+        Material() : p_(0.0) { 
+            a_[0] = 0.0, a_[1] = 0.0, a_[2] = 0.0;
+            d_[0] = 0.0, d_[1] = 0.0, d_[2] = 0.0;
+            s_[0] = 0.0, s_[1] = 0.0, s_[2] = 0.0;
+        }
+
+        // Constructor that takes in given parameters.
+        Material(double a[3], double d[3], double s[3], double p) : p_(p) {
+            a_[0] = a[0], a_[1] = a[1], a_[2] = a[2];
+            d_[0] = d[0], d_[1] = d[1], d_[2] = d[2];
+            s_[0] = s[0], s_[1] = s[1], s_[2] = s[2];
+        }
+
+        // Outputs the Material object as a string representation
+        void print_material();
+};
+
 /* This class represents a graphics object which contains the verticesm
  * the vertex normals, the faces of an object, and the transformations 
  * to be applied to all vertices
@@ -108,6 +147,12 @@ class Object {
         void add(Vertex v);
         void add(Face f);
 
+        // Return a vertex at the given index i
+        Vertex get_vertex(int i);
+
+        // Return a vertex normal at the given index in
+        Vertex get_vertex_normal(int in);
+
         // Print text representing the Object object
         void print_object();
 
@@ -133,12 +178,40 @@ struct Labeled_Object {
 ///       FUNCTIONS        ///
 //////////////////////////////
 
+// Multiplying a vector by a scalar returns a scaled vector
+Vertex dot(double scalar, Vertex v);
+
+// Dot product of 2 vectors (represented as Vertex)
+double dot(Vertex v1, Vertex v2);
+
+// Cross product of 2 vectors (represented as Vertex)
+Vertex cross(Vertex v1, Vertex v2);
+
+// Add 2 vertices together to obtain a new vertex
+Vertex add(Vertex v1, Vertex v2);
+
+// Subtracts one vertex from another vertex to obtain a new vertex
+Vertex subtract(Vertex v1, Vertex v2);
+
+// Compute the distance squared between 2 vertices
+double compute_distance_squared(Vertex v1, Vertex v2);
+
+// This function returns the final vertex normals of the Object after applying
+// the corresponding Transformation to the current Object's vertex normals
+vector<Vertex> get_transformed_normals(Object obj);
+
 // This function returns the final vertices of the object after applying
-// the corresponding Transformation to the current object's vertices
+// the corresponding Transformation to the current Object's vertices
 vector<Vertex> get_transformed_vertices(Object obj);
 
 // This function applies a specific transformation matrix to the
-// vertices of an object and returns the final vertices
+// vertices of an Object and returns the final vertices
 vector<Vertex> get_transformed_vertices(Object obj, Matrix4d transform);
+
+// Convert a Vertex to a 4 x 1 column vector
+Vector4d to_col_vector(Vertex v);
+
+// Convert a 4 x 1 column vector to a Vertex
+Vertex to_vertex(Vector4d col);
 
 #endif // #ifndef __OBJECT_H__
