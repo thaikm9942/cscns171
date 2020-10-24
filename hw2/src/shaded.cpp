@@ -7,9 +7,13 @@
 // Max intensity for any RGB_Color value
 const int MAX_INTENSITY = 255;
 
-void run_shading(Scene scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer, int mode) {
+// Runs the correct shading on the scene based on the mode
+void run_shading(Scene &scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer, int mode) {
     if (mode == 0) {
-        scene_gourad_shading(scene, pixels, buffer);
+        scene_gouraud_shading(scene, pixels, buffer);
+    }
+    else if (mode == 1) {
+        scene_phong_shading(scene, pixels, buffer);
     }
 }
 

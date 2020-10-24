@@ -51,11 +51,17 @@ class Light {
 ///       FUNCTIONS        ///
 //////////////////////////////
 
-// This function runs the lighting algorithm used to compute the color
-// of a point P on an illuminated surface. The function takes in
-// a point p, a surface normal (Vertex), the material properties of the object,
-// a list of light sources, and a camera object, and returns 
-// an array of doubles representing the color value of the point P.
-Color lighting(Vertex p, Vertex n, Material mat, vector<Light> lights, double e[3]);
+/**
+ * This function runs the lighting algorithm used to compute the color
+ * of a point P on an illuminated surface and returns a Color
+ * object representing the rgb color values of the point P.
+ * 
+ * @param p vertex whose color is to be determined
+ * @param n the vertex normal associated with @param p
+ * @param mat a pointer to the material properties of the object drawan
+ * @param lights a pointer to the list of light sources
+ * @param e an array of doubles corresponding to the camera's (x, y, z) coordinates in world space
+ */
+Color lighting(Vertex p, Vertex n, Material &mat, vector<Light> &lights, double e[3]);
 
 #endif // #ifndef __LIGHT_H__

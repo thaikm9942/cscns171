@@ -26,7 +26,7 @@ void Material::print_material() {
 //////////////////////////////
 
 // Implements the lighting algorithm
-Color lighting(Vertex p, Vertex n, Material mat, vector<Light> lights, double e[3]) {
+Color lighting(Vertex p, Vertex n, Material &mat, vector<Light> &lights, double e[3]) {
     Color cp;
 
     // Initializes the direction vector pointing from p to the camera

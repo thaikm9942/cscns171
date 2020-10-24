@@ -1,6 +1,10 @@
 #include "../include/rasterization.h"
 #include <math.h>
 
+//////////////////////////////
+///    HELPER FUNCTIONS    ///
+//////////////////////////////
+
 // Function to check if the barycentric coordinates is contained within
 // the triangle formed by the 3 vertices
 bool in_triangle(double value) {
@@ -33,9 +37,76 @@ double compute_gamma(double xa, double ya, double xb, double yb, double xc, doub
     return compute_function(xa, ya, xb, yb, x, y) / compute_function(xa, ya, xb, yb, xc, yc);
 }
 
-// Implements the Gourad Shading algorithm
-void gourad_shading(Vertex a, Vertex an, Vertex b, Vertex bn, Vertex c, Vertex cn, 
-    Material mat, Scene scene,
+//////////////////////////////
+///     MAIN FUNCTIONS     ///
+//////////////////////////////
+
+// Implements Phong shading algorithm
+void phong_shading(Vertex a, Vertex b, Vertex c, Vertex an, Vertex bn, Vertex cn,
+    Material &mat, Scene &scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer) {
+        // Converts a, b, c from world space coordinates to NDC coordinates
+        Vertex a_ndc = scene.to_ndc_coordinates(a);
+        Vertex b_ndc = scene.to_ndc_coordinates(b);
+        Vertex c_ndc = scene.to_ndc_coordinates(c);
+
+        // Calculates the cross product of (c - b) and (a - b)
+        Vertex cross_product = cross(subtract(c_ndc, b_ndc), subtract(a_ndc, b_ndc));
+
+        // If the component of the cross product is negative, then
+        // this is a back-facing triangle
+        if (cross_product.z_ < 0) { return; }
+
+        // Converts all NDC coordinates to screen coordinates
+        Vertex sa = a_ndc.to_screen_coordinates(scene.xres_, scene.yres_);
+        Vertex sb = b_ndc.to_screen_coordinates(scene.xres_, scene.yres_);
+        Vertex sc = c_ndc.to_screen_coordinates(scene.xres_, scene.yres_);
+
+        // Initialize coordinates for the bounding box
+        int x_min = min(sa.x_, min(sb.x_, sc.x_));
+        int x_max = max(sa.x_, max(sb.x_, sc.x_));
+        int y_min = min(sa.y_, min(sb.y_, sc.y_));
+        int y_max = max(sa.y_, max(sb.y_, sc.y_));
+
+        // Iterate through all coordinates of the bounding box
+        for (int x = x_min; x <= x_max; x++) {
+            for (int y = y_min; y <= y_max; y++) {
+                // Computes the barycentric coordinates for the point (x, y)
+                double alpha = compute_alpha(sa.x_, sa.y_, sb.x_, sb.y_, sc.x_, sc.y_, x, y);
+                double beta = compute_beta(sa.x_, sa.y_, sb.x_, sb.y_, sc.x_, sc.y_, x, y);
+                double gamma = compute_gamma(sa.x_, sa.y_, sb.x_, sb.y_, sc.x_, sc.y_, x, y);
+
+                // Checks if the barycentric coordinates of a point are within the triangle 
+                // formed by the 3 vertices a, b, c
+                if (in_triangle(alpha) && in_triangle(beta) && in_triangle(gamma)) {
+                    // Finds the NDC coordinates of the point defined by (x, y)
+                    Vertex p = add(add(dot(alpha, a_ndc), dot(beta, b_ndc)), dot(gamma, c_ndc));
+
+                    // If the point p is contained within the NDC cube and it is not blocked
+                    // by any points with a smaller z value, then find its bareycentric normal and vertex
+                    // in relation to the triangle and computes its color value based on these normal
+                    // and vertex. Then, fill in the color grid.
+                    if (p.is_contained() && p.z_ <= buffer[y][x]) {
+                        // Update buffer
+                        buffer[y][x] = p.z_;
+
+                        // Find the point's normal and vertex
+                        Vertex new_n = add(add(dot(alpha, an), dot(beta, bn)), dot(gamma, cn));
+                        Vertex new_v = add(add(dot(alpha, a), dot(beta, b)), dot(gamma, c));
+
+                        // Calculates its Color values using the lighting algorithm
+                        Color c = lighting(new_v, new_n, mat, scene.ls_, scene.cam_.p_);
+
+                        // Fill the grid at (x, y) with its color
+                        pixels[y][x] = c;
+                    }
+                }
+            }
+        }
+ }
+
+// Implements the Gouraud Shading algorithm
+void gouraud_shading(Vertex a, Vertex an, Vertex b, Vertex bn, Vertex c, Vertex cn, 
+    Material &mat, Scene &scene,
     vector<vector<Color>> &pixels, vector<vector<double>> &buffer) {
     
     // Retrieves the Camera object and the light sources from the scene
@@ -104,10 +175,13 @@ void raster_colored_triangle(Vertex a_ndc, Vertex b_ndc, Vertex c_ndc,
                 // as barycentric coordinates of the colors of a, b and c and fill it
                 // in the pixel grid
                 if (p.is_contained() && p.z_ <= buffer[y][x]) {
+                    // Update colors
                     buffer[y][x] = p.z_;  
+
+                    // Calculates the point's Color values using barycentric coordinates
                     Color c = add_colors(alpha, beta, gamma, c_a, c_b, c_c);
-                    // printf("x: %d, y: %d\n", x, y);
-                    // printf("c: %f %f %f\n", c.r_, c.g_, c.b_);
+
+                    // Fill the grid at (x, y) with its color
                     pixels[y][x] = c;
                 }
             }

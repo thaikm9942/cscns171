@@ -119,7 +119,14 @@ class Scene {
         set<tuple<int, int>> get_pixels();
 };
 
-// Runs Gourad shading on the scene to output the final rasterized, colored image
-void scene_gourad_shading(Scene scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer);
+//////////////////////////////
+///       FUNCTIONS        ///
+//////////////////////////////
+
+// Runs Gouraud shading on the scene to output the final rasterized, colored image
+void scene_gouraud_shading(Scene &scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer);
+
+// Runs Phong shading on the scene to output the final rasterized, colored image
+void scene_phong_shading(Scene &scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer);
 
 #endif // #ifndef __SCENE_H__

@@ -102,8 +102,8 @@ void Scene::transform_normals() {
 }
 
 void Scene::apply_transformations() {
-    // Apply geometric transformations in world space coordinates
-    
+    // Apply geometric transformations in world space coordinates to all
+    // vertices and vertex normals
     apply_geometric_transforms();
     transform_normals();
 }
@@ -144,8 +144,7 @@ set<tuple<int, int>> Scene::get_pixels() {
 //////////////////////////////
 ///     MAIN FUNCTIONS     ///
 //////////////////////////////
-
-void scene_gourad_shading(Scene scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer) {
+void scene_gouraud_shading(Scene &scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer) {
     for (int i = 0; i < scene.objs_.size(); i++) {
         Object obj = scene.objs_[i].obj;
         for (int j = 0; j < obj.fs_.size(); j++) {
@@ -156,7 +155,23 @@ void scene_gourad_shading(Scene scene, vector<vector<Color>> &pixels, vector<vec
             Vertex bn = obj.vns_[f.n_[1]];
             Vertex c = obj.vs_[f.i_[2]];
             Vertex cn = obj.vns_[f.n_[2]];
-            gourad_shading(a, an, b, bn, c, cn, obj.m_, scene, pixels, buffer);
+            gouraud_shading(a, an, b, bn, c, cn, obj.m_, scene, pixels, buffer);
+        }
+    }
+}
+
+void scene_phong_shading(Scene &scene, vector<vector<Color>> &pixels, vector<vector<double>> &buffer) {
+    for (int i = 0; i < scene.objs_.size(); i++) {
+        Object obj = scene.objs_[i].obj;
+        for (int j = 0; j < obj.fs_.size(); j++) {
+            Face f = obj.fs_[j];
+            Vertex a = obj.vs_[f.i_[0]];
+            Vertex an = obj.vns_[f.n_[0]];
+            Vertex b = obj.vs_[f.i_[1]];
+            Vertex bn = obj.vns_[f.n_[1]];
+            Vertex c = obj.vs_[f.i_[2]];
+            Vertex cn = obj.vns_[f.n_[2]];
+            phong_shading(a, b, c, an, bn, cn, obj.m_, scene, pixels, buffer);
         }
     }
 }
