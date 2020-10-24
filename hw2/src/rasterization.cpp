@@ -175,7 +175,7 @@ void raster_colored_triangle(Vertex a_ndc, Vertex b_ndc, Vertex c_ndc,
                 // as barycentric coordinates of the colors of a, b and c and fill it
                 // in the pixel grid
                 if (p.is_contained() && p.z_ <= buffer[y][x]) {
-                    // Update colors
+                    // Update buffer
                     buffer[y][x] = p.z_;  
 
                     // Calculates the point's Color values using barycentric coordinates
