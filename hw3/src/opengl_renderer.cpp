@@ -3,6 +3,7 @@
 #include <GL/glut.h>
 #include "../Eigen/Dense"
 #include "../include/parser.h"
+#include "../include/quarternion.h"
 #include <math.h>
 #define _USE_MATH_DEFINES
 
@@ -34,7 +35,7 @@ void key_pressed(unsigned char key, int x, int y);
 int start_x, start_y, curr_x, curr_y;
 
 // Keeps track of the last arcball rotation and the current arcball rotation
-Eigen::Matrix4f last_rotation, curr_rotation;
+Quarternion last_rotation, curr_rotation;
 
 // Scene should be a global variable
 Scene scene;
@@ -55,6 +56,10 @@ bool wireframe_mode = false;
 ///    HELPER FUNCTIONS    ///
 //////////////////////////////
 
+/*
+ * Useful helper functions for general calculation purposes
+ */
+
 void normalize(float u[3]) {
     float norm = sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
     u[0] = u[0] / norm;
@@ -74,9 +79,42 @@ float rad2deg(float angle)
     return angle * 180.0 / M_PI;
 }
 
-/* This function constructs a CCW rotation matrix given a vector u
- * and an angle theta (in radians)
+// Calculate the Euclidean norm of a vector
+float norm(Vertex v) {
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+}
+
+// Calculate the dot product between 2 vectors
+float dot(Vertex v1, Vertex v2) {
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+}
+
+// Calculate the cross product between 2 vectors 
+Vertex cross(Vertex v1, Vertex v2) {
+    double cx = v1.y * v2.z - v1.z * v2.y;
+    double cy = v1.z * v2.x - v1.x * v2.z;
+    double cz = v1.x * v2.y - v1.y * v2.x;
+    return Vertex(cx, cy, cz);
+}
+
+// Converts a vertex from screen coordinates to NDC coordinates
+Vertex screen2ndc(float sx, float sy, int xres, int yres) {
+    float ndc_x = (float) (2.0 * sx) / xres - 1.0;
+    float ndc_y = (float) (scene.yres - sy) * 2.0 / yres - 1.0;
+    float squared_sum = ndc_x * ndc_x + ndc_y * ndc_y;
+    if (squared_sum > 1) {
+        return Vertex(ndc_x, ndc_y, 0.0);
+    }
+    float ndc_z = abs(sqrt(1 - (squared_sum)));
+    return Vertex(ndc_x, ndc_y, ndc_z);
+}
+
+/*
+ * Helper functions for axis-angled rotational Arcball implementation. These functions
+ * are currectly obsolete due to a more computationally efficient quarternion implementation.
  */
+
+// This function constructs a CCW rotation matrix given a vector u and an angle theta (in radians)
 Eigen::Matrix4f create_rotation_matrix(float u[3], float theta) {
     // Normalize the given vector
     normalize(u);
@@ -110,36 +148,6 @@ Eigen::Matrix4f create_rotation_matrix(float u[3], float theta) {
     return r;
 }
 
-// Converts a vertex from screen coordinates to NDC coordinates
-Vertex screen2ndc(float sx, float sy, int xres, int yres) {
-    float ndc_x = (float) (2.0 * sx) / xres - 1.0;
-    float ndc_y = (float) (scene.yres - sy) * 2.0 / yres - 1.0;
-    float squared_sum = ndc_x * ndc_x + ndc_y * ndc_y;
-    if (squared_sum > 1) {
-        return Vertex(ndc_x, ndc_y, 0.0);
-    }
-    float ndc_z = abs(sqrt(1 - (squared_sum)));
-    return Vertex(ndc_x, ndc_y, ndc_z);
-}
-
-// Calculate the Euclidean norm of a vector
-float norm(Vertex v) {
-    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-}
-
-// Calculate the dot product between 2 vectors
-float dot(Vertex v1, Vertex v2) {
-    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
-}
-
-// Calculate the cross product between 2 vectors 
-Vertex cross(Vertex v1, Vertex v2) {
-    double cx = v1.y * v2.z - v1.z * v2.y;
-    double cy = v1.z * v2.x - v1.x * v2.z;
-    double cz = v1.x * v2.y - v1.y * v2.x;
-    return Vertex(cx, cy, cz);
-}
-
 // Compute the rotation matrix for the Arcball rotation given the starting (x, y) coordinates
 // and the final (x, y) coordinates of the mouse
 Eigen::Matrix4f compute_rotation_matrix(float curr_x, float curr_y, float start_x, float start_y) {
@@ -158,10 +166,74 @@ Eigen::Matrix4f compute_rotation_matrix(float curr_x, float curr_y, float start_
     return create_rotation_matrix(u, theta);
 }
 
-// Get the current Arcball rotation matrix
-Eigen::Matrix4f get_current_rotation() {
-    return curr_rotation * last_rotation;
+/*
+ * Helper functions for Quarternion Arcball implementation. These functions
+ * are currectly obsolete due to a more computationally efficient quarternion implementation.
+ */
+
+// Get the current Arcball quarternion representing the current rotation matrix
+Quarternion get_current_rotation() {
+    return curr_rotation.dot(last_rotation);
 }
+
+// Converts a quarternion to a rotation matrix. The details are outlined in Lecture Notes for Assignment 3
+Eigen::Matrix4f quar2rot(Quarternion q) {
+    float qs = q.s;
+    float qx = q.v[0];
+    float qy = q.v[1];
+    float qz = q.v[2];
+    // Constructing the first row values
+    float r11 = 1 - 2 * qy * qy - 2 * qz * qz;
+    float r12 = 2 * (qx * qy - qz * qs);
+    float r13 = 2 * (qx * qz + qy * qs);
+
+    // Constructing the second row values
+    float r21 = 2 * (qx * qy + qz * qs);
+    float r22 = 1 - 2 * qx * qx - 2 * qz * qz;
+    float r23 = 2 * (qy * qz - qx * qs);
+
+    // Constructing the third row values
+    float r31 = 2 * (qx * qz - qy * qs);
+    float r32 = 2 * (qy * qz + qx * qs);
+    float r33 = 1 - 2 * qx * qx - 2 * qy * qy;
+
+    Eigen::Matrix4f r;
+    r << r11, r12, r13, 0, // row 1
+        r21, r22, r23, 0, // row 2
+        r31, r32, r33, 0, // row 3
+        0, 0, 0, 1; // row 4
+
+    // Asserts that the product of a rotation matrix and its transpose 
+    // should be the identity matrix
+    assert((r * r.transpose()).isApprox(Eigen::Matrix4f::Identity(), 10e-7));
+    return r;
+}
+
+// Compute the rotation matrix for the Arcball rotation given the starting (x, y) coordinates
+// and the final (x, y) coordinates of the mouse
+Quarternion compute_rotation_quarternion(float curr_x, float curr_y, float start_x, float start_y) {
+    // Convert both starting coordinates and ending coordinates from screen to NDC
+    Vertex curr_ndc = screen2ndc(curr_x, curr_y, scene.xres, scene.yres);
+    Vertex start_ndc = screen2ndc(start_x, start_y, scene.xres, scene.yres);
+
+    // Calculate the axis of rotation using cross product
+    Vertex axis = cross(start_ndc, curr_ndc);
+    float u[3] = {axis.x, axis.y, axis.z};
+
+    // Compute the angle of rotation
+    float arg = dot(start_ndc, curr_ndc) / (norm(start_ndc) * norm(curr_ndc));
+    float theta = acosf(fmin(1.0, arg));
+
+    // Converts the rotation matrix parameters to a quarternion
+    return rot2quar(u, theta);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+ * Function definitions for prototype functions defined above. These functions are passed 
+ * into OpenGL functions to handle displaying of graphics.
+ */
 
 // Initialization function
 void init(void) {
@@ -182,9 +254,9 @@ void init(void) {
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
 
-    // Initialize the Arcball rotation matrices as identity matrices
-    last_rotation = Eigen::Matrix4f::Identity();
-    curr_rotation = Eigen::Matrix4f::Identity();
+    // Initialize the Arcball rotation matrices as identity quarternions
+    last_rotation = quarternion_identity();
+    curr_rotation = quarternion_identity();
 
     // Set the matrix modified to be the projection matrix
     glMatrixMode(GL_PROJECTION);
@@ -205,7 +277,7 @@ void init(void) {
     init_lights();
 }
 
-
+// Reshape function
 void reshape(int width, int height) {
     // Sets the minimum screen size to be 1 x 1
     height = (height == 0) ? 1 : height;
@@ -214,13 +286,11 @@ void reshape(int width, int height) {
     // Sets up Viewport to convert NDC to screen coordinates
     glViewport(0, 0, width, height);
 
-    // Update mouse interface parameters
-    Perspective perspective = scene.perspective;
-
     // Re-renders the scene after resizing
     glutPostRedisplay();
 }
 
+// Main "display" function
 void display(void) {
     // Reset color buffer and depth buffer array
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -236,8 +306,12 @@ void display(void) {
     glRotatef(-rad2deg(camera.angle), camera.orientation[0], camera.orientation[1], camera.orientation[2]);
     glTranslatef(-camera.position[0], -camera.position[1], -camera.position[2]);
 
-    // Apply the Arcball rotation matrix
-    Eigen::Matrix4f arcball_rotation = get_current_rotation();
+    // Converts the quarternion to rotation matrix and apply this Arcball rotation to all points
+    Quarternion arcball_quar = get_current_rotation();
+
+    // Normalize the quarternion to be a unit quarternion
+    arcball_quar.normalize();
+    Eigen::Matrix4f arcball_rotation = quar2rot(arcball_quar);
     glMultMatrixf(arcball_rotation.data());
 
     // Set up the lights
@@ -373,7 +447,7 @@ void mouse_pressed(int button, int state, int x, int y) {
         // Set is_pressed flag to false
         is_pressed = false;
         last_rotation = get_current_rotation();
-        curr_rotation = Eigen::Matrix4f::Identity();
+        curr_rotation = quarternion_identity();
     }
 }
 
@@ -386,8 +460,8 @@ void mouse_moved(int x, int y) {
 
         // Avoid computing the rotation matrix if the starting and ending coordinates are the same,
         // this causes the rotation matrix to have nan's in them and crashes the program
-        if (start_x != curr_x && start_y != curr_y) {
-            curr_rotation = compute_rotation_matrix(curr_x, curr_y, start_x, start_y);
+        if (start_x != curr_x || start_y != curr_y) {
+            curr_rotation = compute_rotation_quarternion(curr_x, curr_y, start_x, start_y);
         }
         
         // Re-render our scene
@@ -444,7 +518,7 @@ void key_pressed(unsigned char key, int x, int y) {
     }
 }
 
-// Main function
+// Main function where the parsing is done and everything comes together
 int main(int argc, char* argv[]) {
     if (argc != 4) {
         printf("Usage: ./opengl_renderer <scene_description_file.txt> xres yres\n");
@@ -461,10 +535,10 @@ int main(int argc, char* argv[]) {
             cout << "Error opening file\n";
         }
         else { 
-            // Number of columns in pixel grid - xres
+            // Width of the window screen
             int width = atoi(argv[2]);
 
-            // Number of rows in pixel grid - yres
+            // Height of the window screen
             int height = atoi(argv[3]);
 
             // Initialize a map to store label with its associated Object
