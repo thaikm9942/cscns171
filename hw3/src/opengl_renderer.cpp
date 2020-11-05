@@ -1,4 +1,3 @@
-
 /* The following 2 headers contain all the main functions, data structures, and
  * variables that allow for OpenGL development.
  */
@@ -14,7 +13,7 @@
  * Besides the use of 'M_PI', the trigometric functions also show up a lot in
  * graphics computations.
  */
-#include "include/parser.h"
+#include "../include/parser.h"
 #include <math.h>
 #define _USE_MATH_DEFINES
 
@@ -23,6 +22,18 @@
 #include <map>
 
 using namespace std;
+
+// Helper function to convert an angle from degree to radian
+float deg2rad(float angle)
+{
+    return angle * M_PI / 180.0;
+}
+
+// Helper function to convert an angle from radians to degree
+float rad2deg(float angle)
+{
+    return angle * 180.0 / M_PI;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +113,7 @@ void init(void) {
     init_lights();
 }
 
+
 void reshape(int width, int height) {
     // Sets the minimum screen size to be 1 x 1
     height = (height == 0) ? 1 : height;
@@ -136,9 +148,9 @@ void display(void) {
 
     // Apply inverse camera transform, including rotation AND then translation
     Camera camera = scene.camera;
+    glRotatef(-rad2deg(camera.angle), camera.orientation[0], camera.orientation[1], camera.orientation[2]);
     glTranslatef(-camera.position[0], -camera.position[1], -camera.position[2]);
-    glRotatef(-camera.angle, camera.orientation[0], camera.orientation[1], camera.orientation[2]);
-
+    
     // Set up the lights
     set_lights();
 
@@ -196,13 +208,13 @@ void set_lights() {
 void draw_objects() {
     vector<Labeled_Object> objects = scene.objects;
 
-    for (int i = 0; i < objects.size(); ++i) {
+    for (int i = 0; i < objects.size(); i++) {
         Object object = objects[i].obj;
 
         // Push a copy of the current Modelview Matrix onto the Stack
         glPushMatrix();
 
-        for (int j = 0; j < object.transforms.size(); ++j) {
+        for (int j = 0; j < object.transforms.size(); j++) {
             Transform_Set transform_set = object.transforms[j];
 
             // Have to iterate backwards since we want to make the calls to 
@@ -214,15 +226,12 @@ void draw_objects() {
                 // Runs the correct OpenGL transformation based on the type of transformation
                 switch (transform.type) {
                     case TRANSLATION:
-                        // printf("translation\n");
                         glTranslatef(transform.parameters[0], transform.parameters[1], transform.parameters[2]);
                         break;
                     case ROTATION:
-                        // printf("rotation\n");
-                        glRotatef(transform.angle, transform.parameters[0], transform.parameters[1], transform.parameters[2]);
+                        glRotatef(rad2deg(transform.angle), transform.parameters[0], transform.parameters[1], transform.parameters[2]);
                         break;
                     case SCALING:
-                        // printf("scaling\n");
                         glScalef(transform.parameters[0], transform.parameters[1], transform.parameters[2]);
                         break;
                 }
@@ -293,12 +302,6 @@ void mouse_moved(int x, int y) {
         // Re-render our scene
         glutPostRedisplay();
     }
-}
-
-// Helper function to convert an angle from degree to radian
-float deg2rad(float angle)
-{
-    return angle * M_PI / 180.0;
 }
 
 // Handle key events when a key is pressed
@@ -416,9 +419,6 @@ int main(int argc, char* argv[]) {
                     scene.add_labeled_object(obj, label);                 
                 }  
             }
-            
-            // Prints the scene out
-            // scene.print_scene();
 
             // After the scene parsing business is done, render the scene
             glutInit(&argc, argv);
