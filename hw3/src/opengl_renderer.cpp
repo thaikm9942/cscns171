@@ -1,18 +1,7 @@
-/* The following 2 headers contain all the main functions, data structures, and
- * variables that allow for OpenGL development.
- */
+// Includes for OpenGL
 #include <GL/glew.h>
 #include <GL/glut.h>
-
-/* You will almost always want to include the math library. For those that do
- * not know, the '_USE_MATH_DEFINES' line allows you to use the syntax 'M_PI'
- * to represent pi to double precision in C++. OpenGL works in degrees for
- * angles, so converting between degrees and radians is a common task when
- * working in OpenGL.
- *
- * Besides the use of 'M_PI', the trigometric functions also show up a lot in
- * graphics computations.
- */
+#include "../Eigen/Dense"
 #include "../include/parser.h"
 #include <math.h>
 #define _USE_MATH_DEFINES
@@ -22,18 +11,6 @@
 #include <map>
 
 using namespace std;
-
-// Helper function to convert an angle from degree to radian
-float deg2rad(float angle)
-{
-    return angle * M_PI / 180.0;
-}
-
-// Helper function to convert an angle from radians to degree
-float rad2deg(float angle)
-{
-    return angle * 180.0 / M_PI;
-}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -53,26 +30,138 @@ void key_pressed(unsigned char key, int x, int y);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-/* The following are parameters for creating an interactive first-person camera
- * view of the scene. The variables will make more sense when explained in
- * context, so you should just look at the 'mousePressed', 'mouseMoved', and
- * 'keyPressed' functions for the details.
- */
+// Keeps track of the initial mouse positions and the ending mouse positions
+int start_x, start_y, curr_x, curr_y;
 
-int mouse_x, mouse_y;
-float mouse_scale_x, mouse_scale_y;
+// Keeps track of the last arcball rotation and the current arcball rotation
+Eigen::Matrix4f last_rotation, curr_rotation;
 
+// Scene should be a global variable
+Scene scene;
+
+// Controls the keyboard interactions to zoom in and zoom out of the screen
 const float step_size = 0.2;
-const float x_view_step = 90.0, y_view_step = 90.0;
 float x_view_angle = 0, y_view_angle = 0;
 
+// Boolean flag to keep track of whether or not a mouse button is pressed or released
 bool is_pressed = false;
+
+// Boolean flag to indicate whether we are in wireframe mode
 bool wireframe_mode = false;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Scene should be a global variable
-Scene scene;
+//////////////////////////////
+///    HELPER FUNCTIONS    ///
+//////////////////////////////
+
+void normalize(float u[3]) {
+    float norm = sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+    u[0] = u[0] / norm;
+    u[1] = u[1] / norm;
+    u[2] = u[2] / norm;
+}
+
+// Helper function to convert an angle from degree to radian
+float deg2rad(float angle)
+{
+    return angle * M_PI / 180.0;
+}
+
+// Helper function to convert an angle from radians to degree
+float rad2deg(float angle)
+{
+    return angle * 180.0 / M_PI;
+}
+
+/* This function constructs a CCW rotation matrix given a vector u
+ * and an angle theta (in radians)
+ */
+Eigen::Matrix4f create_rotation_matrix(float u[3], float theta) {
+    // Normalize the given vector
+    normalize(u);
+
+    // Initialize the rotation matrix
+    Eigen::Matrix4f r;
+
+    // Constructing the first row values
+    float r11 = u[0] * u[0] + (1 - u[0] * u[0]) * cos(theta);
+    float r12 = u[0] * u[1] * (1 - cos(theta)) - u[2] * sin(theta);
+    float r13 = u[0] * u[2] * (1 - cos(theta)) + u[1] * sin(theta);
+
+    // Constructing the second row values
+    float r21 = u[1] * u[0] * (1 - cos(theta)) + u[2] * sin(theta);
+    float r22 = u[1] * u[1] + (1 - u[1] * u[1]) * cos(theta);
+    float r23 = u[1] * u[2] * (1 - cos(theta)) - u[0] * sin(theta);
+
+    // Constructing the third row values
+    float r31 = u[2] * u[0] * (1 - cos(theta)) - u[1] * sin(theta);
+    float r32 = u[2] * u[1] * (1 - cos(theta)) + u[0] * sin(theta);
+    float r33 = u[2] * u[2] + (1 - u[2] * u[2]) * cos(theta);
+
+    r << r11, r12, r13, 0, // row 1
+        r21, r22, r23, 0, // row 2
+        r31, r32, r33, 0, // row 3
+        0, 0, 0, 1; // row 4
+
+    // Asserts that the product of a rotation matrix and its transpose 
+    // should be the identity matrix
+    assert((r * r.transpose()).isApprox(Eigen::Matrix4f::Identity(), 10e-7));
+    return r;
+}
+
+// Converts a vertex from screen coordinates to NDC coordinates
+Vertex screen2ndc(float sx, float sy, int xres, int yres) {
+    float ndc_x = (float) (2.0 * sx) / xres - 1.0;
+    float ndc_y = (float) (scene.yres - sy) * 2.0 / yres - 1.0;
+    float squared_sum = ndc_x * ndc_x + ndc_y * ndc_y;
+    if (squared_sum > 1) {
+        return Vertex(ndc_x, ndc_y, 0.0);
+    }
+    float ndc_z = abs(sqrt(1 - (squared_sum)));
+    return Vertex(ndc_x, ndc_y, ndc_z);
+}
+
+// Calculate the Euclidean norm of a vector
+float norm(Vertex v) {
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+}
+
+// Calculate the dot product between 2 vectors
+float dot(Vertex v1, Vertex v2) {
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+}
+
+// Calculate the cross product between 2 vectors 
+Vertex cross(Vertex v1, Vertex v2) {
+    double cx = v1.y * v2.z - v1.z * v2.y;
+    double cy = v1.z * v2.x - v1.x * v2.z;
+    double cz = v1.x * v2.y - v1.y * v2.x;
+    return Vertex(cx, cy, cz);
+}
+
+// Compute the rotation matrix for the Arcball rotation given the starting (x, y) coordinates
+// and the final (x, y) coordinates of the mouse
+Eigen::Matrix4f compute_rotation_matrix(float curr_x, float curr_y, float start_x, float start_y) {
+    // Convert both starting coordinates and ending coordinates from screen to NDC
+    Vertex curr_ndc = screen2ndc(curr_x, curr_y, scene.xres, scene.yres);
+    Vertex start_ndc = screen2ndc(start_x, start_y, scene.xres, scene.yres);
+
+    // Calculate the axis of rotation using cross product
+    Vertex axis = cross(start_ndc, curr_ndc);
+    float u[3] = {axis.x, axis.y, axis.z};
+
+    // Compute the angle of rotation
+    float arg = dot(start_ndc, curr_ndc) / (norm(start_ndc) * norm(curr_ndc));
+    float theta = acosf(fmin(1.0, arg));
+
+    return create_rotation_matrix(u, theta);
+}
+
+// Get the current Arcball rotation matrix
+Eigen::Matrix4f get_current_rotation() {
+    return curr_rotation * last_rotation;
+}
 
 // Initialization function
 void init(void) {
@@ -93,6 +182,10 @@ void init(void) {
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
 
+    // Initialize the Arcball rotation matrices as identity matrices
+    last_rotation = Eigen::Matrix4f::Identity();
+    curr_rotation = Eigen::Matrix4f::Identity();
+
     // Set the matrix modified to be the projection matrix
     glMatrixMode(GL_PROJECTION);
 
@@ -101,7 +194,6 @@ void init(void) {
 
     // Create the perspective projection matrix using frustum parameters
     Perspective perspective = scene.perspective;
-
     glFrustum(perspective.left, perspective.right, 
         perspective.bottom, perspective.top, 
         perspective.near, perspective.far);
@@ -124,8 +216,6 @@ void reshape(int width, int height) {
 
     // Update mouse interface parameters
     Perspective perspective = scene.perspective;
-    mouse_scale_x = (float) (perspective.right - perspective.left) / (float) width;
-    mouse_scale_y = (float) (perspective.top - perspective.bottom) / (float) height;
 
     // Re-renders the scene after resizing
     glutPostRedisplay();
@@ -138,11 +228,6 @@ void display(void) {
     // Set the Modelview matrix to be the Identity matrix
     glLoadIdentity();
 
-    // Rotate the camera from its default orientation based on
-    // user's mouse interactions
-    glRotatef(y_view_angle, 1, 0, 0);
-    glRotatef(x_view_angle, 0, 1, 0);
-
     // Remember to apply inverse camera transforms BEFORE the actual
     // geometric transforms due to OpenGL Post-Multiplication behavior
 
@@ -150,7 +235,11 @@ void display(void) {
     Camera camera = scene.camera;
     glRotatef(-rad2deg(camera.angle), camera.orientation[0], camera.orientation[1], camera.orientation[2]);
     glTranslatef(-camera.position[0], -camera.position[1], -camera.position[2]);
-    
+
+    // Apply the Arcball rotation matrix
+    Eigen::Matrix4f arcball_rotation = get_current_rotation();
+    glMultMatrixf(arcball_rotation.data());
+
     // Set up the lights
     set_lights();
 
@@ -221,7 +310,6 @@ void draw_objects() {
             // the transformation in REVERSE order considering OpenGL uses 
             for (int k = transform_set.transform_set.size() - 1; k >= 0; k--) {
                 Transform transform = transform_set.transform_set[k];
-                transform.print_transformation();
 
                 // Runs the correct OpenGL transformation based on the type of transformation
                 switch (transform.type) {
@@ -272,16 +360,20 @@ void mouse_pressed(int button, int state, int x, int y) {
     // If left mouse button is pressed down then ...
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
         // Retrieve position of the mouse
-        mouse_x = x;
-        mouse_y = y;
+        start_x = x;
+        start_y = y;
 
         // Set is_pressed flag to true
         is_pressed = true;
     }
-    // Else, if left mouse button is released up
+    // Else, if left mouse button is released, then set the last rotation
+    // to be the current rotation, and reset the current rotation to be the i
+    // dentity matrix
     else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
         // Set is_pressed flag to false
         is_pressed = false;
+        last_rotation = get_current_rotation();
+        curr_rotation = Eigen::Matrix4f::Identity();
     }
 }
 
@@ -289,16 +381,15 @@ void mouse_pressed(int button, int state, int x, int y) {
 void mouse_moved(int x, int y) {
     if (is_pressed) {
         // Modify the current x- and y- view angle
-        x_view_angle += ((float) x - (float) mouse_x) * mouse_scale_x * x_view_step;
-        float temp_y_view_angle = y_view_angle + 
-            ((float) y - (float) mouse_y) * mouse_scale_y * y_view_step;
-        y_view_angle = (temp_y_view_angle > 90 || temp_y_view_angle < -90) ?
-                       y_view_angle : temp_y_view_angle;
+        curr_x = x;
+        curr_y = y;
 
-        // Update current mouse (x, y)-position
-        mouse_x = x;
-        mouse_y = y;
-
+        // Avoid computing the rotation matrix if the starting and ending coordinates are the same,
+        // this causes the rotation matrix to have nan's in them and crashes the program
+        if (start_x != curr_x && start_y != curr_y) {
+            curr_rotation = compute_rotation_matrix(curr_x, curr_y, start_x, start_y);
+        }
+        
         // Re-render our scene
         glutPostRedisplay();
     }

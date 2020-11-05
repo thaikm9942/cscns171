@@ -2,17 +2,6 @@
 #include <math.h>
 
 //////////////////////////////
-///    HELPER FUNCTIONS    ///
-//////////////////////////////
-
-void normalize(float u[3]) {
-    float norm = sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-    u[0] = u[0] / norm;
-    u[1] = u[1] / norm;
-    u[2] = u[2] / norm;
-}
-
-//////////////////////////////
 ///     CLASS FUNCTIONS    ///
 //////////////////////////////
 
