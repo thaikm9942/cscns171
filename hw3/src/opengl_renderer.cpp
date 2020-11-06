@@ -3,7 +3,7 @@
 #include <GL/glut.h>
 #include "../Eigen/Dense"
 #include "../include/parser.h"
-#include "../include/quarternion.h"
+#include "../include/Quaternion.h"
 #include <math.h>
 #define _USE_MATH_DEFINES
 
@@ -35,7 +35,7 @@ void key_pressed(unsigned char key, int x, int y);
 int start_x, start_y, curr_x, curr_y;
 
 // Keeps track of the last arcball rotation and the current arcball rotation
-Quarternion last_rotation, curr_rotation;
+Quaternion last_rotation, curr_rotation;
 
 // Scene should be a global variable
 Scene scene;
@@ -111,7 +111,7 @@ Vertex screen2ndc(float sx, float sy, int xres, int yres) {
 
 /*
  * Helper functions for axis-angled rotational Arcball implementation. These functions
- * are currectly obsolete due to a more computationally efficient quarternion implementation.
+ * are currectly obsolete due to a more computationally efficient Quaternion implementation.
  */
 
 // This function constructs a CCW rotation matrix given a vector u and an angle theta (in radians)
@@ -167,17 +167,17 @@ Eigen::Matrix4f compute_rotation_matrix(float curr_x, float curr_y, float start_
 }
 
 /*
- * Helper functions for Quarternion Arcball implementation. These functions
- * are currectly obsolete due to a more computationally efficient quarternion implementation.
+ * Helper functions for Quaternion Arcball implementation. These functions
+ * are currectly obsolete due to a more computationally efficient Quaternion implementation.
  */
 
-// Get the current Arcball quarternion representing the current rotation matrix
-Quarternion get_current_rotation() {
+// Get the current Arcball Quaternion representing the current rotation matrix
+Quaternion get_current_rotation() {
     return curr_rotation.dot(last_rotation);
 }
 
-// Converts a quarternion to a rotation matrix. The details are outlined in Lecture Notes for Assignment 3
-Eigen::Matrix4f quar2rot(Quarternion q) {
+// Converts a Quaternion to a rotation matrix. The details are outlined in Lecture Notes for Assignment 3
+Eigen::Matrix4f quar2rot(Quaternion q) {
     float qs = q.s;
     float qx = q.v[0];
     float qy = q.v[1];
@@ -211,7 +211,7 @@ Eigen::Matrix4f quar2rot(Quarternion q) {
 
 // Compute the rotation matrix for the Arcball rotation given the starting (x, y) coordinates
 // and the final (x, y) coordinates of the mouse
-Quarternion compute_rotation_quarternion(float curr_x, float curr_y, float start_x, float start_y) {
+Quaternion compute_rotation_Quaternion(float curr_x, float curr_y, float start_x, float start_y) {
     // Convert both starting coordinates and ending coordinates from screen to NDC
     Vertex curr_ndc = screen2ndc(curr_x, curr_y, scene.xres, scene.yres);
     Vertex start_ndc = screen2ndc(start_x, start_y, scene.xres, scene.yres);
@@ -224,7 +224,7 @@ Quarternion compute_rotation_quarternion(float curr_x, float curr_y, float start
     float arg = dot(start_ndc, curr_ndc) / (norm(start_ndc) * norm(curr_ndc));
     float theta = acosf(fmin(1.0, arg));
 
-    // Converts the rotation matrix parameters to a quarternion
+    // Converts the rotation matrix parameters to a Quaternion
     return rot2quar(u, theta);
 }
 
@@ -254,9 +254,9 @@ void init(void) {
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
 
-    // Initialize the Arcball rotation matrices as identity quarternions
-    last_rotation = quarternion_identity();
-    curr_rotation = quarternion_identity();
+    // Initialize the Arcball rotation matrices as identity Quaternions
+    last_rotation = Quaternion_identity();
+    curr_rotation = Quaternion_identity();
 
     // Set the matrix modified to be the projection matrix
     glMatrixMode(GL_PROJECTION);
@@ -306,10 +306,10 @@ void display(void) {
     glRotatef(-rad2deg(camera.angle), camera.orientation[0], camera.orientation[1], camera.orientation[2]);
     glTranslatef(-camera.position[0], -camera.position[1], -camera.position[2]);
 
-    // Converts the quarternion to rotation matrix and apply this Arcball rotation to all points
-    Quarternion arcball_quar = get_current_rotation();
+    // Converts the Quaternion to rotation matrix and apply this Arcball rotation to all points
+    Quaternion arcball_quar = get_current_rotation();
 
-    // Normalize the quarternion to be a unit quarternion
+    // Normalize the Quaternion to be a unit Quaternion
     arcball_quar.normalize();
     Eigen::Matrix4f arcball_rotation = quar2rot(arcball_quar);
     glMultMatrixf(arcball_rotation.data());
@@ -447,7 +447,7 @@ void mouse_pressed(int button, int state, int x, int y) {
         // Set is_pressed flag to false
         is_pressed = false;
         last_rotation = get_current_rotation();
-        curr_rotation = quarternion_identity();
+        curr_rotation = Quaternion_identity();
     }
 }
 
@@ -461,7 +461,7 @@ void mouse_moved(int x, int y) {
         // Avoid computing the rotation matrix if the starting and ending coordinates are the same,
         // this causes the rotation matrix to have nan's in them and crashes the program
         if (start_x != curr_x || start_y != curr_y) {
-            curr_rotation = compute_rotation_quarternion(curr_x, curr_y, start_x, start_y);
+            curr_rotation = compute_rotation_Quaternion(curr_x, curr_y, start_x, start_y);
         }
         
         // Re-render our scene

@@ -50,7 +50,8 @@ class Transform {
         void print_transformation();
 };
 
-// This class defines a single SET of transformations (which includes rotation, )
+// This class defines a single SET of transformations (which includes rotations, translations and scalings).
+// The geometric transformations are added depending on the order of which they are parsed.
 class Transform_Set {
         public:
         // A vector storing a set of geometric transformations
