@@ -3,7 +3,7 @@
 #include <GL/glut.h>
 #include "../Eigen/Dense"
 #include "../include/parser.h"
-#include "../include/Quaternion.h"
+#include "../include/quaternion.h"
 #include <math.h>
 #define _USE_MATH_DEFINES
 
