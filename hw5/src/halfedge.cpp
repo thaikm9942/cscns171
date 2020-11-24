@@ -79,7 +79,7 @@ float compute_sum_neighbor_area(HEV* hev) {
     // Obtain the half-edge going out of this vertex
     HE* he = hev->out;
 
-    // Initialize our vertex normal for this vertex
+    // Initialize our area sum
     float sum_area = 0.0;
 
     // For every incident face, add the face area to the total neighbor area sum
@@ -87,7 +87,6 @@ float compute_sum_neighbor_area(HEV* hev) {
         // Compute the incident face area
         float area = compute_face_area(he->face);
 
-        printf("area: %f\n", area);
         // Adds the weighted normal to the current weighted normal sum
         sum_area += area;
 

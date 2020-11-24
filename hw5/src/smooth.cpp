@@ -607,28 +607,7 @@ void index_vertices(vector<HEV*> *hevs) {
     }
 }
 
-typedef float (*laplacian_func)(HEV* hev);
-
-float get_x(HEV* hev) {
-    return hev->x;
-}
-
-float get_y(HEV* hev) {
-    return hev->y;
-}
-
-float get_z(HEV* hev) {
-    return hev->z;
-}
-
 float compute_cotan_sum(HEV* i, HEV* j, HEV* m, HEV* n) {
-    // Get the 2 vertices that face the opposites of the edge e_ij
-    /*
-    HEV* m = i->out->flip->next->next->vertex;
-    HEV* n = i->out->next->next->vertex;
-    */
-
-    // printf("index i: %d, j: %d, m: %d, n: %d\n", i->index, j->index, m->index, n->index);
     // Vectors forming 1 of the opposite angles (alpha_j)
     Vertex mi = Vertex(i->x - m->x, i->y - m->y, i->z - m->z);
     Vertex mj = Vertex(j->x - m->x, j->y - m->y, j->z - m->z);
@@ -651,10 +630,7 @@ float compute_cotan_sum(HEV* i, HEV* j, HEV* m, HEV* n) {
     return cot_alpha + cot_beta;
 }
 
-Eigen::SparseMatrix<double> build_F_operator(vector<HEV*> *hevs, double h, laplacian_func laplacian) {
-    // Index our vertices in the vector of halfedge vertices
-    index_vertices(hevs);
-
+Eigen::SparseMatrix<double> build_F_operator(vector<HEV*> *hevs, double h) {
     // Calculate the number of vertices - have to subtract 1 due to 1-indexing
     int size = hevs->size() - 1;
 
@@ -675,41 +651,38 @@ Eigen::SparseMatrix<double> build_F_operator(vector<HEV*> *hevs, double h, lapla
         // Gets the half edge corresponding to the current vertex
         HE* he = hev->out;
 
-
         // Compute the neighbor area sum for v_i
         float sum_neighbor_area = compute_sum_neighbor_area(hev);
 
         // If the sum neighbor area is really small, then just set (i, j)-th entry as 0 for all j's adjacent
-        if (sum_neighbor_area <= 10e-4) {
+        if (sum_neighbor_area <= 10e-6) {
             continue;
         }
+
+        // Sum of cotangent sum for (i, i)-th 
+        float sum_cot_sum = 0.0;
 
         // Iterate through all adjacent vertices
         do {
             // Get index of adjacent vertex v_j to v_i
             int j = he->next->vertex->index;
-            // printf("index i: %d, j: %d\n", hev->index, he->next->vertex->index);
-            // cout << "A: " << sum_neighbor_area << "\n";
-
-            // Compute the laplacian difference of the Laplacian function evalauted at i and j
-            float laplacian_diff = laplacian(he->next->vertex) - laplacian(hev);
-            // cout << "Laplacian diff: " << laplacian_diff << "\n";
 
             // Compute the cotangent sum term
-            float cot_sum = compute_cotan_sum(hev, he->next->vertex, he->flip->next->next->vertex, he->next->next->vertex);
+            float cot_sum = compute_cotan_sum(he->vertex, he->next->vertex, he->flip->next->next->vertex, he->next->next->vertex);
+            sum_cot_sum += cot_sum;
 
-            // Calculate the (i, j)-th term in the sparse matrix
-            double ij = (double) laplacian_diff * cot_sum / (2.0 * sum_neighbor_area);
-
-            // cout << "ij: " << ij << "\n";
-            // Fill the j-th column of the i-th row of our F matrix with the correct value
-            // This is 1 / 2A * cot_term * laplacian_diff
-            F.insert(i-1, j-1) = ij;
+            // Fill the j-th column of the i-th row of our F matrix with the correct value (which is just the cotangent sum)
+            double c_ij = cot_sum / (2.0 * sum_neighbor_area);
+            F.insert(i-1, j-1) = c_ij;
 
             // Retrieves the next halfedge
             he = he->flip->next;
         }
         while (he != hev->out);
+
+        // Fill the diagonal entry (i, i)-th  of our F matrix with the negated SUM of cotangent sums, but we need to negate it
+        double c_ii = -sum_cot_sum / (2.0 * sum_neighbor_area);
+        F.insert(i-1, i-1) = c_ii;
     }
 
     // Make Eigen store F efficiently
@@ -741,10 +714,13 @@ Eigen::VectorXd solve_phi(Eigen::SparseMatrix<double> sparse, Eigen::VectorXd rh
 // Function to solve the Poisson equation involving the F operator
 void solve(vector<HEV*> *hevs, double h)
 {
+    // Index our vertices in the vector of halfedge vertices
+    index_vertices(hevs);
+    
     // Get our matrix representation of F
-    Eigen::SparseMatrix<double> Fx = build_F_operator(hevs, h, get_x);
-    Eigen::SparseMatrix<double> Fy = build_F_operator(hevs, h, get_y);
-    Eigen::SparseMatrix<double> Fz = build_F_operator(hevs, h, get_z);
+    Eigen::SparseMatrix<double> Fx = build_F_operator(hevs, h);
+    Eigen::SparseMatrix<double> Fy = build_F_operator(hevs, h);
+    Eigen::SparseMatrix<double> Fz = build_F_operator(hevs, h);
 
     // Size of our rho/phi vector (basically the number of vertices in the vector of halfedge vertices)
     int size = hevs->size() - 1;
