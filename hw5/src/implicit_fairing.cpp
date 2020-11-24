@@ -115,7 +115,13 @@ Eigen::SparseMatrix<double> build_F_operator(vector<HEV*> *hevs, double h) {
     return I - h * F;
 }
 
-// Function to solve
+/*
+ * Function that uses our Laplacian matrix and the provided rho vector to solve for the resulting phi vector
+ * 
+ * @param sparse - a sparse matrix representing our Laplacian operator
+ * @param rho_vector - the vector provided on the right hand side used to solve the Poisson equation
+ * @param size - size of the resulting solved vector
+ */
 Eigen::VectorXd solve_phi(Eigen::SparseMatrix<double> sparse, Eigen::VectorXd rho_vector, int size) {
     // Initialize Eigen sparse solver
     Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> > solver;
@@ -134,7 +140,6 @@ Eigen::VectorXd solve_phi(Eigen::SparseMatrix<double> sparse, Eigen::VectorXd rh
     return phi_vector;
 }
 
-// Function to solve the Poisson equation involving the F operator
 void solve(vector<HEV*> *hevs, double h)
 {
     // Index our vertices in the vector of halfedge vertices
@@ -159,7 +164,7 @@ void solve(vector<HEV*> *hevs, double h)
         rho_z(i - 1) = hevs->at(i)->z;
     }
 
-    // Solve for the new x_h, y_h and z_h coordinates after smoothing
+    // Solve for the new x_h, y_h and z_h coordinates of all vertices after smoothing
     Eigen::VectorXd phi_x = solve_phi(F, rho_x, size);
     Eigen::VectorXd phi_y = solve_phi(F, rho_y, size);
     Eigen::VectorXd phi_z = solve_phi(F, rho_z, size);

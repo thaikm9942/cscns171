@@ -7,6 +7,11 @@
 
 using namespace std;
 
+/*
+ * This header file contains all the necessary functions needed to generate a new smoothed mesh via implicit fairing
+ * by solving discretized Poisson equations
+ */
+
 /* Our main function that solves the Poisson equation responsible to generate the new coordinates for each vertex
  * in the smoothed mesh via implicit fairing. Details of the implementation is provided more in the comments of the 
  * .cpp file
