@@ -4,8 +4,9 @@
 #include <GL/glu.h>
 #include <GL/glut.h>
 
-// Includes for Eigen library and parser.h and quaternion.h
+// Includes for Eigen library and parser.h and quaternion.h and halfedge.h
 #include "../Eigen/Dense"
+#include "../Eigen/Sparse"
 #include "../include/parser.h"
 #include "../include/quaternion.h"
 #include "../include/halfedge.h"
@@ -43,12 +44,14 @@ void key_pressed(unsigned char key, int x, int y);
 // Keeps track of the initial mouse positions and the ending mouse positions
 int start_x, start_y, curr_x, curr_y;
 
-
 // Keeps track of the last arcball rotation and the current arcball rotation
 Quaternion last_rotation, curr_rotation;
 
 // Scene should be a global variable
 Scene scene;
+
+// Timestep used for implicit fairing
+double timestep;
 
 // Controls the keyboard interactions to zoom in and zoom out of the screen
 const float step_size = 0.2;
@@ -596,6 +599,240 @@ void mouse_moved(int x, int y) {
     }
 }
 
+// Assigns each vertex in our vector of halfedge vertices to an index
+void index_vertices(vector<HEV*> *hevs) {
+    // Starts at index 1 due to 1-indexed vertices
+    for (int i = 1; i < hevs->size(); ++i) {
+        hevs->at(i)->index = i;
+    }
+}
+
+typedef float (*laplacian_func)(HEV* hev);
+
+float get_x(HEV* hev) {
+    return hev->x;
+}
+
+float get_y(HEV* hev) {
+    return hev->y;
+}
+
+float get_z(HEV* hev) {
+    return hev->z;
+}
+
+float compute_cotan_sum(HEV* i, HEV* j, HEV* m, HEV* n) {
+    // Get the 2 vertices that face the opposites of the edge e_ij
+    /*
+    HEV* m = i->out->flip->next->next->vertex;
+    HEV* n = i->out->next->next->vertex;
+    */
+
+    // printf("index i: %d, j: %d, m: %d, n: %d\n", i->index, j->index, m->index, n->index);
+    // Vectors forming 1 of the opposite angles (alpha_j)
+    Vertex mi = Vertex(i->x - m->x, i->y - m->y, i->z - m->z);
+    Vertex mj = Vertex(j->x - m->x, j->y - m->y, j->z - m->z);
+
+    // Vectors forming the other opposite angle (beta_j)
+    Vertex ni = Vertex(i->x - n->x, i->y - n->y, i->z - n->z);
+    Vertex nj = Vertex(j->x - n->x, j->y - n->y, j->z - n->z);
+
+    // Cosine angle of 2 vectors is the dot product divided by the norm of each vector
+    // So, we have cos(alpha) = mi * mj / (|mi| * |mj|)
+    // Sine angle of 2 vectors is the magnitude of the cross product divided by the norm of each vector
+    // So, we have sin(alpha) = |mi x mj| / (|mi| * |mj|)
+    // Therefore, cot(alpha) = cos(alpha) / sin(alpha) = mi * mj / |mi x mj|
+    float cot_alpha = dot(mi, mj) / norm(cross(mi, mj));
+
+    // Similarly, we compute the cotangent of beta using the principle above
+    float cot_beta = dot(ni, nj) / norm(cross(ni, nj));
+
+    // Return the sum of the cotangents
+    return cot_alpha + cot_beta;
+}
+
+Eigen::SparseMatrix<double> build_F_operator(vector<HEV*> *hevs, double h, laplacian_func laplacian) {
+    // Index our vertices in the vector of halfedge vertices
+    index_vertices(hevs);
+
+    // Calculate the number of vertices - have to subtract 1 due to 1-indexing
+    int size = hevs->size() - 1;
+
+    // Initialize our sparse matrix to represent our F operator
+    Eigen::SparseMatrix<double> F(size, size);
+
+    // Initialize our identity matrix
+    Eigen::SparseMatrix<double> I(size, size);
+    I.setIdentity();
+    I.makeCompressed();
+
+    // Reserve room for 7 non-zeros per row of B (this is considering the number of adjacent vertices to a vertex)
+    F.reserve(Eigen::VectorXi::Constant(size, 7));
+
+    for(int i = 1; i < hevs->size(); ++i) {
+        // Gets the current vertex
+        HEV* hev = hevs->at(i); 
+        // Gets the half edge corresponding to the current vertex
+        HE* he = hev->out;
+
+
+        // Compute the neighbor area sum for v_i
+        float sum_neighbor_area = compute_sum_neighbor_area(hev);
+
+        // If the sum neighbor area is really small, then just set (i, j)-th entry as 0 for all j's adjacent
+        if (sum_neighbor_area <= 10e-4) {
+            continue;
+        }
+
+        // Iterate through all adjacent vertices
+        do {
+            // Get index of adjacent vertex v_j to v_i
+            int j = he->next->vertex->index;
+            // printf("index i: %d, j: %d\n", hev->index, he->next->vertex->index);
+            // cout << "A: " << sum_neighbor_area << "\n";
+
+            // Compute the laplacian difference of the Laplacian function evalauted at i and j
+            float laplacian_diff = laplacian(he->next->vertex) - laplacian(hev);
+            // cout << "Laplacian diff: " << laplacian_diff << "\n";
+
+            // Compute the cotangent sum term
+            float cot_sum = compute_cotan_sum(hev, he->next->vertex, he->flip->next->next->vertex, he->next->next->vertex);
+
+            // Calculate the (i, j)-th term in the sparse matrix
+            double ij = (double) laplacian_diff * cot_sum / (2.0 * sum_neighbor_area);
+
+            // cout << "ij: " << ij << "\n";
+            // Fill the j-th column of the i-th row of our F matrix with the correct value
+            // This is 1 / 2A * cot_term * laplacian_diff
+            F.insert(i-1, j-1) = ij;
+
+            // Retrieves the next halfedge
+            he = he->flip->next;
+        }
+        while (he != hev->out);
+    }
+
+    // Make Eigen store F efficiently
+    F.makeCompressed();
+
+    // Return the final F matrix
+    return I - h * F;
+}
+
+Eigen::VectorXd solve_phi(Eigen::SparseMatrix<double> sparse, Eigen::VectorXd rho_vector, int size) {
+    // cout << rho_vector << endl;
+    // Initialize Eigen sparse solver
+    Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> > solver;
+
+    // The following two lines essentially tailor our solver to our operator sparse matrix
+    solver.analyzePattern(sparse);
+    solver.factorize(sparse);
+
+    // Initialize our vector representation of phi
+    Eigen::VectorXd phi_vector(size);
+
+    // Solve for our phi vector
+    phi_vector = solver.solve(rho_vector);
+
+    // Return the resulting phi vector
+    return phi_vector;
+}
+
+// Function to solve the Poisson equation involving the F operator
+void solve(vector<HEV*> *hevs, double h)
+{
+    // Get our matrix representation of F
+    Eigen::SparseMatrix<double> Fx = build_F_operator(hevs, h, get_x);
+    Eigen::SparseMatrix<double> Fy = build_F_operator(hevs, h, get_y);
+    Eigen::SparseMatrix<double> Fz = build_F_operator(hevs, h, get_z);
+
+    // Size of our rho/phi vector (basically the number of vertices in the vector of halfedge vertices)
+    int size = hevs->size() - 1;
+
+    // Initialize the rho vector representation of all the x coordinates for each
+    Eigen::VectorXd rho_x(size);
+    Eigen::VectorXd rho_y(size);
+    Eigen::VectorXd rho_z(size);
+
+    // Initialize the rho vectors of x_0, y_0 and z_0 by copying the current x-, y- and z-coordinates from each vertex into
+    // the corresponding rho vector
+    for (int i = 1; i < hevs->size(); i++) {
+        rho_x(i - 1) = hevs->at(i)->x;
+        rho_y(i - 1) = hevs->at(i)->y;
+        rho_z(i - 1) = hevs->at(i)->z;
+    }
+
+    // Solve for the new x_h, y_h and z_h coordinates after smoothing
+    Eigen::VectorXd phi_x = solve_phi(Fx, rho_x, size);
+    Eigen::VectorXd phi_y = solve_phi(Fy, rho_y, size);
+    Eigen::VectorXd phi_z = solve_phi(Fz, rho_z, size);
+
+    // Iterate over each halfedge vertex and set the new x, y, z coordinates to be the newly computed ones
+    for (int i = 1; i < hevs->size(); i++) { // Start at index 1 due to NULL
+        // cout << "x" << i << " before:" << hevs->at(i)->x << "\n";
+        hevs->at(i)->x = phi_x(i - 1);
+        // cout << "x" << i << " after:" << hevs->at(i)->x << "\n";
+        hevs->at(i)->y = phi_y(i - 1);
+        hevs->at(i)->z = phi_z(i - 1);
+    }
+}
+
+// Function to update the vertex and normal buffers after implicit fairing process is ran
+void update_buffers() {
+    for (int i = 0; i < scene.objects.size(); i++) {
+        // Retrieves the mesh data for this object
+        Mesh_Data* mesh_data = scene.objects[i].mesh_data;
+        // Allocate new pointers to the store halfedge vertices and halfedge faces
+        vector<HEV*> *hevs = new vector<HEV*>;
+        vector<HEF*> *hefs = new vector<HEF*>;
+
+        // Build the halfedge data structure representation of this object
+        build_HE(mesh_data, hevs, hefs);
+
+        // Solve the Poisson equation and updates the new vertex coordinates for each vertex after
+        // smoothing
+        solve(hevs, timestep);
+
+        // Compute the NEW vertex normals for each vertex in the halfedge data structure,
+        // need to ignore the first vertex since that's NULL
+        for (int j = 1; j < hevs->size(); j++) {
+            compute_vertex_normal(hevs->at(j));
+        }
+
+        // Clear out the old vertex buffer and normal buffer of the object so we can update them
+        scene.objects[i].obj.vertex_buffer.clear();
+        scene.objects[i].obj.normal_buffer.clear();
+
+        // For each halfedge face, we will add the 3 vertices that form the face and their
+        // respective vertex normals into the buffers
+        for (int j = 0; j < hefs->size(); j++) {
+            // Obtain the face at index j
+            HEF* hef = hefs->at(j);
+
+            // Get the corresponding halfedge of this face
+            HE* he = hef->edge;
+
+            // Retrieves the 3 vertices that form this face
+            HEV* v1 = he->vertex;
+            HEV* v2 = he->next->vertex;
+            HEV* v3 = he->next->next->vertex;
+            
+            // Add the vertices into the vertex buffer
+            scene.objects[i].obj.add_vertex_to_buffer(Vertex(v1->x, v1->y, v1->z));
+            scene.objects[i].obj.add_vertex_to_buffer(Vertex(v2->x, v2->y, v2->z));
+            scene.objects[i].obj.add_vertex_to_buffer(Vertex(v3->x, v3->y, v3->z));
+
+            // Add their corresponding vertex normals into the normal buffer
+            scene.objects[i].obj.add_normal_to_buffer(v1->normal);
+            scene.objects[i].obj.add_normal_to_buffer(v2->normal);
+            scene.objects[i].obj.add_normal_to_buffer(v3->normal);
+        }
+
+        // Delete the mesh data used to calculate our normals
+        delete_HE(hevs, hefs);
+    }
+}
+
 // Handle key events when a key is pressed
 void key_pressed(unsigned char key, int x, int y) {
     // Quitting the program
@@ -607,6 +844,20 @@ void key_pressed(unsigned char key, int x, int y) {
     else if(key == 't')
     {
         wireframe_mode = !wireframe_mode;
+        // Re-render the scene
+        glutPostRedisplay();
+    }
+    // Toggle implicit fairing when pressed
+    else if(key == 'i')
+    {
+        // scene.objects[0].obj.vertex_buffer[0].print_vertex();
+        cout << "Smoothing the mesh with timestep h = " << timestep << "\n";
+        // Update the buffers with the new smoothed out vertices
+        update_buffers();
+
+        // Multiply the timestep by 2 for the next smoothing phase in case we press it again
+        timestep *= 2;
+
         // Re-render the scene
         glutPostRedisplay();
     }
@@ -683,11 +934,12 @@ int main(int argc, char* argv[]) {
             // Height of the window screen
             int height = atoi(argv[3]);
 
-            int timestep = atoi(argv[4]);
+            // Timestep
+            timestep = atof(argv[4]);
 
             // Determines whether the default Gouraud shading or the Phong shading will
             // be used to render our scene
-            int mode = 1;
+            int mode = 0;
 
             // Initialize a map to store label with its associated Object
             map<string, Object> untransformed;

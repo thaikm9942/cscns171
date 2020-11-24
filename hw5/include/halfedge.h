@@ -406,4 +406,8 @@ Vertex compute_face_normal(HEF* face);
 
 // Helper function to compute the face area of the given halfedge area
 float compute_face_area(HEF* face);
+
+// Function to compute the sum of the areas of incident faces on the current vertex
+float compute_sum_neighbor_area(HEV* hev);
+
 #endif

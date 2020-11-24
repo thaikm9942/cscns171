@@ -25,6 +25,26 @@ Mesh_Data* create_mesh_data(Object obj) {
     return mesh_data;
 }
 
+Vertex compute_face_normal(HEF* face) {
+    // Retrieves the 3 vertices that form this face
+    HEV* v1 = face->edge->vertex;
+    HEV* v2 = face->edge->next->vertex;
+    HEV* v3 = face->edge->next->next->vertex;
+
+    // The face normal is the cross product of (v2 - v1) and (v3 - v1)
+    Vertex a = Vertex(v2->x - v1->x, v2->y - v1->y, v2->z - v1->z);
+    Vertex b = Vertex(v3->x - v1->x, v3->y - v1->y, v3->z - v1->z);
+    Vertex normal = cross(a, b);
+    return normal;
+}
+
+float compute_face_area(HEF* face) {
+    Vertex n = compute_face_normal(face);
+    // The face area is the half of the Euclidean norm of the face normal
+    return norm(n) / 2.0;
+}
+
+
 void compute_vertex_normal(HEV* hev) {
     // Obtain the half-edge going out of this vertex
     HE* he = hev->out;
@@ -55,23 +75,29 @@ void compute_vertex_normal(HEV* hev) {
     hev->normal = vertex_normal;
 }
 
-Vertex compute_face_normal(HEF* face) {
-    // Retrieves the 3 vertices that form this face
-    HEV* v1 = face->edge->vertex;
-    HEV* v2 = face->edge->next->vertex;
-    HEV* v3 = face->edge->next->next->vertex;
+float compute_sum_neighbor_area(HEV* hev) {
+    // Obtain the half-edge going out of this vertex
+    HE* he = hev->out;
 
-    // The face normal is the cross product of (v2 - v1) and (v3 - v1)
-    Vertex a = Vertex(v2->x - v1->x, v2->y - v1->y, v2->z - v1->z);
-    Vertex b = Vertex(v3->x - v1->x, v3->y - v1->y, v3->z - v1->z);
-    Vertex normal = cross(a, b);
-    return normal;
-}
+    // Initialize our vertex normal for this vertex
+    float sum_area = 0.0;
 
-float compute_face_area(HEF* face) {
-    Vertex n = compute_face_normal(face);
-    // The face area is the half of the Euclidean norm of the face normal
-    return norm(n) / 2.0;
+    // For every incident face, add the face area to the total neighbor area sum
+    do {
+        // Compute the incident face area
+        float area = compute_face_area(he->face);
+
+        printf("area: %f\n", area);
+        // Adds the weighted normal to the current weighted normal sum
+        sum_area += area;
+
+        // Move onto the next adjacent vertex (using its halfedge), we know that this halfedge will
+        // be the halfedge corresponding to the next incident face of the current vertex
+        he = he->flip->next;
+    }
+    // Repeat this until we've reached the first adjacent vertex
+    while (he != hev->out);
+    return sum_area;
 }
 
 void print_mesh_data(Mesh_Data* mesh_data) {
