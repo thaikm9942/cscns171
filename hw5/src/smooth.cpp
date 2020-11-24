@@ -9,7 +9,7 @@
 #include "../Eigen/Sparse"
 #include "../include/parser.h"
 #include "../include/quaternion.h"
-#include "../include/halfedge.h"
+#include "../include/implicit_fairing.h"
 
 // Includes for standard c library
 #include <math.h>
@@ -599,160 +599,6 @@ void mouse_moved(int x, int y) {
     }
 }
 
-// Assigns each vertex in our vector of halfedge vertices to an index
-void index_vertices(vector<HEV*> *hevs) {
-    // Starts at index 1 due to 1-indexed vertices
-    for (int i = 1; i < hevs->size(); ++i) {
-        hevs->at(i)->index = i;
-    }
-}
-
-float compute_cotan_sum(HEV* i, HEV* j, HEV* m, HEV* n) {
-    // Vectors forming 1 of the opposite angles (alpha_j)
-    Vertex mi = Vertex(i->x - m->x, i->y - m->y, i->z - m->z);
-    Vertex mj = Vertex(j->x - m->x, j->y - m->y, j->z - m->z);
-
-    // Vectors forming the other opposite angle (beta_j)
-    Vertex ni = Vertex(i->x - n->x, i->y - n->y, i->z - n->z);
-    Vertex nj = Vertex(j->x - n->x, j->y - n->y, j->z - n->z);
-
-    // Cosine angle of 2 vectors is the dot product divided by the norm of each vector
-    // So, we have cos(alpha) = mi * mj / (|mi| * |mj|)
-    // Sine angle of 2 vectors is the magnitude of the cross product divided by the norm of each vector
-    // So, we have sin(alpha) = |mi x mj| / (|mi| * |mj|)
-    // Therefore, cot(alpha) = cos(alpha) / sin(alpha) = mi * mj / |mi x mj|
-    float cot_alpha = dot(mi, mj) / norm(cross(mi, mj));
-
-    // Similarly, we compute the cotangent of beta using the principle above
-    float cot_beta = dot(ni, nj) / norm(cross(ni, nj));
-
-    // Return the sum of the cotangents
-    return cot_alpha + cot_beta;
-}
-
-Eigen::SparseMatrix<double> build_F_operator(vector<HEV*> *hevs, double h) {
-    // Calculate the number of vertices - have to subtract 1 due to 1-indexing
-    int size = hevs->size() - 1;
-
-    // Initialize our sparse matrix to represent our F operator
-    Eigen::SparseMatrix<double> F(size, size);
-
-    // Initialize our identity matrix
-    Eigen::SparseMatrix<double> I(size, size);
-    I.setIdentity();
-    I.makeCompressed();
-
-    // Reserve room for 7 non-zeros per row of B (this is considering the number of adjacent vertices to a vertex)
-    F.reserve(Eigen::VectorXi::Constant(size, 7));
-
-    for(int i = 1; i < hevs->size(); ++i) {
-        // Gets the current vertex
-        HEV* hev = hevs->at(i); 
-        // Gets the half edge corresponding to the current vertex
-        HE* he = hev->out;
-
-        // Compute the neighbor area sum for v_i
-        float sum_neighbor_area = compute_sum_neighbor_area(hev);
-
-        // If the sum neighbor area is really small, then just set (i, j)-th entry as 0 for all j's adjacent
-        if (sum_neighbor_area <= 10e-6) {
-            continue;
-        }
-
-        // Sum of cotangent sum for (i, i)-th 
-        float sum_cot_sum = 0.0;
-
-        // Iterate through all adjacent vertices
-        do {
-            // Get index of adjacent vertex v_j to v_i
-            int j = he->next->vertex->index;
-
-            // Compute the cotangent sum term
-            float cot_sum = compute_cotan_sum(he->vertex, he->next->vertex, he->flip->next->next->vertex, he->next->next->vertex);
-            sum_cot_sum += cot_sum;
-
-            // Fill the j-th column of the i-th row of our F matrix with the correct value (which is just the cotangent sum)
-            double c_ij = cot_sum / (2.0 * sum_neighbor_area);
-            F.insert(i-1, j-1) = c_ij;
-
-            // Retrieves the next halfedge
-            he = he->flip->next;
-        }
-        while (he != hev->out);
-
-        // Fill the diagonal entry (i, i)-th  of our F matrix with the negated SUM of cotangent sums, but we need to negate it
-        double c_ii = -sum_cot_sum / (2.0 * sum_neighbor_area);
-        F.insert(i-1, i-1) = c_ii;
-    }
-
-    // Make Eigen store F efficiently
-    F.makeCompressed();
-
-    // Return the final F matrix
-    return I - h * F;
-}
-
-Eigen::VectorXd solve_phi(Eigen::SparseMatrix<double> sparse, Eigen::VectorXd rho_vector, int size) {
-    // cout << rho_vector << endl;
-    // Initialize Eigen sparse solver
-    Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> > solver;
-
-    // The following two lines essentially tailor our solver to our operator sparse matrix
-    solver.analyzePattern(sparse);
-    solver.factorize(sparse);
-
-    // Initialize our vector representation of phi
-    Eigen::VectorXd phi_vector(size);
-
-    // Solve for our phi vector
-    phi_vector = solver.solve(rho_vector);
-
-    // Return the resulting phi vector
-    return phi_vector;
-}
-
-// Function to solve the Poisson equation involving the F operator
-void solve(vector<HEV*> *hevs, double h)
-{
-    // Index our vertices in the vector of halfedge vertices
-    index_vertices(hevs);
-    
-    // Get our matrix representation of F
-    Eigen::SparseMatrix<double> Fx = build_F_operator(hevs, h);
-    Eigen::SparseMatrix<double> Fy = build_F_operator(hevs, h);
-    Eigen::SparseMatrix<double> Fz = build_F_operator(hevs, h);
-
-    // Size of our rho/phi vector (basically the number of vertices in the vector of halfedge vertices)
-    int size = hevs->size() - 1;
-
-    // Initialize the rho vector representation of all the x coordinates for each
-    Eigen::VectorXd rho_x(size);
-    Eigen::VectorXd rho_y(size);
-    Eigen::VectorXd rho_z(size);
-
-    // Initialize the rho vectors of x_0, y_0 and z_0 by copying the current x-, y- and z-coordinates from each vertex into
-    // the corresponding rho vector
-    for (int i = 1; i < hevs->size(); i++) {
-        rho_x(i - 1) = hevs->at(i)->x;
-        rho_y(i - 1) = hevs->at(i)->y;
-        rho_z(i - 1) = hevs->at(i)->z;
-    }
-
-    // Solve for the new x_h, y_h and z_h coordinates after smoothing
-    Eigen::VectorXd phi_x = solve_phi(Fx, rho_x, size);
-    Eigen::VectorXd phi_y = solve_phi(Fy, rho_y, size);
-    Eigen::VectorXd phi_z = solve_phi(Fz, rho_z, size);
-
-    // Iterate over each halfedge vertex and set the new x, y, z coordinates to be the newly computed ones
-    for (int i = 1; i < hevs->size(); i++) { // Start at index 1 due to NULL
-        // cout << "x" << i << " before:" << hevs->at(i)->x << "\n";
-        hevs->at(i)->x = phi_x(i - 1);
-        // cout << "x" << i << " after:" << hevs->at(i)->x << "\n";
-        hevs->at(i)->y = phi_y(i - 1);
-        hevs->at(i)->z = phi_z(i - 1);
-    }
-}
-
 // Function to update the vertex and normal buffers after implicit fairing process is ran
 void update_buffers() {
     for (int i = 0; i < scene.objects.size(); i++) {
@@ -826,7 +672,6 @@ void key_pressed(unsigned char key, int x, int y) {
     // Toggle implicit fairing when pressed
     else if(key == 'i')
     {
-        // scene.objects[0].obj.vertex_buffer[0].print_vertex();
         cout << "Smoothing the mesh with timestep h = " << timestep << "\n";
         // Update the buffers with the new smoothed out vertices
         update_buffers();
@@ -913,10 +758,6 @@ int main(int argc, char* argv[]) {
             // Timestep
             timestep = atof(argv[4]);
 
-            // Determines whether the default Gouraud shading or the Phong shading will
-            // be used to render our scene
-            int mode = 0;
-
             // Initialize a map to store label with its associated Object
             map<string, Object> untransformed;
 
@@ -958,7 +799,10 @@ int main(int argc, char* argv[]) {
                     Transform_Set t = create_transformation(ifs);
                     obj.transforms.push_back(t);
 
+                    // Create Mesh_Data associated with object
                     Mesh_Data* mesh_data = create_mesh_data(obj);
+
+                    // Add the object to the scene
                     scene.add_labeled_object(obj, label, mesh_data);             
                 }  
             }
@@ -984,12 +828,10 @@ int main(int argc, char* argv[]) {
             // Call our init function
             init();
 
-            if (mode == 1) {
-                // Load in our shader programs
-                vert_filename = "src/vertex_phong.glsl";
-                frag_filename = "src/fragment_phong.glsl";
-                read_shaders();
-            }
+            // Load in our shader programs
+            vert_filename = "src/vertex_phong.glsl";
+            frag_filename = "src/fragment_phong.glsl";
+            read_shaders();
             
             // Set OpenGL display function to our display function
             glutDisplayFunc(display);
