@@ -12,6 +12,8 @@
 #include "../include/utils.h"
 
 // Includes for standard C library
+#include <stdlib.h>
+#include <stdio.h>
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -32,11 +34,13 @@ using namespace std;
 void init(void);
 void reshape(int width, int height);
 void display(void);
-
 void key_pressed(unsigned char key, int x, int y);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+/////////////////////////////////////
+///      GLOBAL VARIABLES         ///
+/////////////////////////////////////
 // Keeps track of the initial mouse positions and the ending mouse positions
 int start_x, start_y, curr_x, curr_y;
 
@@ -44,34 +48,20 @@ int start_x, start_y, curr_x, curr_y;
 int width = 800;
 int height = 800;
 
-// Controls the keyboard interactions to zoom in and zoom out of the screen
-const float step_size = 0.2;
-float x_view_angle = 0, y_view_angle = 0;
-
-// Boolean flag to keep track of whether or not a mouse button is pressed or released
-bool is_pressed = false;
-
 /* Needed to draw the cylinders using glu */
 GLUquadricObj *quadratic;
 
 // Vector of keyframes
-vector<Frame> *all_frames;
+vector<Frame> all_frames;
+
+// Current frame id to load the corresponding frame
+int curr_frame_id;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Converts a vertex from screen coordinates to NDC coordinates
-Vertex screen2ndc(float sx, float sy, int xres, int yres) {
-    float ndc_x = (float) (2.0 * sx) / xres - 1.0;
-    float ndc_y = (float) (yres - sy) * 2.0 / yres - 1.0;
-    float squared_sum = ndc_x * ndc_x + ndc_y * ndc_y;
-    if (squared_sum > 1) {
-        return Vertex(ndc_x, ndc_y, 0.0);
-    }
-    float ndc_z = abs(sqrt(1 - (squared_sum)));
-    return Vertex(ndc_x, ndc_y, ndc_z);
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////
+///      OPENGL FUNCTIONS       ///
+///////////////////////////////////
 
 /*
  * Function definitions for prototype functions defined above. These functions are passed 
@@ -125,14 +115,14 @@ void reshape(int width, int height) {
     glutPostRedisplay();
 }
 
+
 void drawIBar()
 {
-    /*
-    // Add the interpolated translation, scaling and rotation here
-    glTranslatef(0, 0, 0);
-    glRotatef(0, 0, 0, 0);
-    glScalef(0, 0, 0);
-    */
+    // Add the interpolated translation, scaling and rotation geometric transformation based on the current frame
+    Frame frame = all_frames[curr_frame_id];
+    glTranslatef(frame.t[0], frame.t[1], frame.t[2]);
+    glRotatef(frame.angle, frame.r[0], frame.r[1], frame.r[2]);
+    glScalef(frame.s[0], frame.s[1], frame.s[2]);
 
     /* Parameters for drawing the cylinders */
     float cyRad = 0.2, cyHeight = 1.0;
@@ -174,6 +164,36 @@ void drawIBar()
     glPopMatrix();
 }
 
+// Function to draw the text representing the current frame number on the top right corner of the window
+void drawText() {
+    // String buffer
+    unsigned char buffer[100] = "FRAME: ";    
+
+    // Convert the current frame id to text
+    stringstream ss;
+    ss << curr_frame_id;
+    string id = ss.str();
+
+    // Add the frame id to the string buffer
+    strcat((char*) buffer, (const char*) id.c_str());
+
+    // Draw text
+    int w;
+    w = glutBitmapLength(GLUT_BITMAP_8_BY_13, buffer);
+
+    // Set position of text
+    glWindowPos2f(width - 100, height - 50);
+
+    // Set color of text
+    glColor3f(1., 0., 0.);
+    int len = strlen((const char*) buffer);
+
+    // Draw each character in the frame text
+    for (int i = 0; i < len; i++) {
+        glutBitmapCharacter(GLUT_BITMAP_8_BY_13, buffer[i]);
+    }
+}
+
 // Main "display" function
 void display(void) {
     // Reset color buffer and depth buffer array
@@ -192,6 +212,8 @@ void display(void) {
     // Draw I-Bar
     drawIBar();
 
+    drawText();
+
     // Swap the active and off-screen buffers with one another
     glutSwapBuffers();
 }
@@ -203,25 +225,21 @@ void key_pressed(unsigned char key, int x, int y) {
     {
         exit(0);
     }
-    // Toggle next keyframe
+    // Toggle next keyframe and loop back as needed
     else if(key == 'n')
     {
-        return;
+        curr_frame_id = (curr_frame_id + 1) % all_frames.size();
+        cout << "Loading frame " << curr_frame_id << "\n";
+        glutPostRedisplay();
     }
 }
 
-// String splitting function using vector<string> as a storage for the tokens
-vector<string> strsplit(string &s, char delim) {
-    vector<string> toks;
-    istringstream iss(s);
-    string item;
-    while (getline(iss, item, delim)) {
-        toks.push_back(item);
-    }
-    return toks;
-}
+//////////////////////////////////////////////
+///    KEYFRAME INTERPOLATION FUNCTIONS    ///
+//////////////////////////////////////////////
 
-// Find the interpolated component using the Catmull-Rom splines
+// Find the interpolated component using the Catmull-Rom spline (here, the B matrix corresponds to
+// tension parameter t = 0.0)
 float find_interpolated_value(Eigen::Vector4f p, float u) {
     // Construct our inverse matrix C^-1 = B - 4 x 4 matrix
     Eigen::Matrix4f B;
@@ -237,24 +255,127 @@ float find_interpolated_value(Eigen::Vector4f p, float u) {
 
     // Compute the product of B * p
     Eigen::Vector4f k = B * p;
+
+    // Return the final interpolated component
     return v * k;
 }
 
-void find_interpolated_frames(Frame k0, Frame k1, Frame k2, Frame k3) {
-    return;
+// Compute the interpolated translation vector
+void find_interpolated_translation(float t[3], Frame k0, Frame k1, Frame k2, Frame k3, float u) {
+    t[0] = find_interpolated_value(Eigen::Vector4f(k0.t[0], k1.t[0], k2.t[0], k3.t[0]), u);
+    t[1] = find_interpolated_value(Eigen::Vector4f(k0.t[1], k1.t[1], k2.t[1], k3.t[1]), u);
+    t[2] = find_interpolated_value(Eigen::Vector4f(k0.t[2], k1.t[2], k2.t[2], k3.t[2]), u);
 }
 
-// Generate interpolated keyframes
-void generate_interpolated_frames(vector<Frame> &keyframes) {
-    int size = keyframes.size();
-    for (int i = 0; i < size; i++) {
-        Frame k_i = keyframes[i];
-        Frame k_i_plus_one = keyframes[(i + 1) % size];
-        Frame k_i_minus_one = keyframes[((i - 1) + size) % size];
-        Frame k_i_plus_two = keyframes[(i + 2) % size];
-        find_interpolated_frames(k_i_minus_one, k_i, k_i_plus_one, k_i_plus_two);
+// Compute the interpolated rotation vector
+void find_interpolated_scaling(float s[3], Frame k0, Frame k1, Frame k2, Frame k3, float u) {
+    s[0] = find_interpolated_value(Eigen::Vector4f(k0.s[0], k1.s[0], k2.s[0], k3.s[0]), u);
+    s[1] = find_interpolated_value(Eigen::Vector4f(k0.s[1], k1.s[1], k2.s[1], k3.s[1]), u);
+    s[2] = find_interpolated_value(Eigen::Vector4f(k0.s[2], k1.s[2], k2.s[2], k3.s[2]), u);
+}
+
+// Compute the interpolated quaternion component-wise
+Quaternion find_interpolated_quaternion(Frame k0, Frame k1, Frame k2, Frame k3, float u) {
+    float s = find_interpolated_value(Eigen::Vector4f(k0.q.s, k1.q.s, k2.q.s, k3.q.s), u);
+    float x = find_interpolated_value(Eigen::Vector4f(k0.q.v[0], k1.q.v[0], k2.q.v[0], k3.q.v[0]), u);
+    float y = find_interpolated_value(Eigen::Vector4f(k0.q.v[1], k1.q.v[1], k2.q.v[1], k3.q.v[1]), u);
+    float z = find_interpolated_value(Eigen::Vector4f(k0.q.v[2], k1.q.v[2], k2.q.v[2], k3.q.v[2]), u);
+    return Quaternion(s, x, y, z);
+}
+
+// Compute the interpolated rotation vector given its quaternion representatino
+void find_interpolated_rotation(float r[3], Quaternion new_q) {
+    // If the real component (s) is 1, then our square root is 0, 
+    // then we can set rotation axis to be any arbitrary axis since the angle of rotation is 0
+    if (sqrt(1 - new_q.s * new_q.s) < 10e-6) {
+        r[0] = 0;
+        r[1] = 0;
+        r[2] = 1;
+    }
+    else {
+        r[0] = new_q.v[0] / sqrt(1 - new_q.s * new_q.s);
+        r[1] = new_q.v[1] / sqrt(1 - new_q.s * new_q.s);
+        r[2] = new_q.v[2] / sqrt(1 - new_q.s * new_q.s);
     }
 }
+
+Frame find_interpolated_frame(Frame k0, Frame k1, Frame k2, Frame k3, float u, int id) {
+    // Calculate the interpolated translation vector
+    float t[3];
+    find_interpolated_translation(t, k0, k1, k2, k3, u);
+
+    // Calculate the interpolated scaling vector
+    float s[3];
+    find_interpolated_scaling(s, k0, k1, k2, k3, u);
+
+    // Calculate the interpolated quaternion
+    Quaternion q = find_interpolated_quaternion(k0, k1, k2, k3, u);
+
+    // Normalize the quaternion after interpolation
+    q.normalize();
+
+    // Calculates the new rotation axis
+    float r[3];
+    find_interpolated_rotation(r, q);
+
+    // Calculates the new rotation angle
+    float angle = rad2deg(2 * acos(q.s));
+
+    // Returns the interpolated frame corresponding to the step iteration u
+    return Frame(id, t, s, r, angle, q, false);
+}
+
+// Generate all interpolated frames between every pair of keyframes
+void generate_interpolated_frames(vector<Frame> &keyframes) {
+    int size = keyframes.size();
+    for (int i = 0; i < size - 1; i++) {
+        // Get keyframes i and i + 1
+        Frame k1 = keyframes[i];
+        Frame k2 = keyframes[i + 1];
+
+        // Get keyframes i - 1 and i + 2
+        Frame k0 = keyframes[((i - 1) + size) % size];
+        Frame k3 = keyframes[(i + 2) % size];
+
+        // Calculate the number of interpolated frames in between k_i and k_{i+1} (including both keyframes)
+        int num_interpolated_frames = k2.frame_id - k1.frame_id;
+
+        // Calculate the step size for the u parameter
+        float step_size = 1.0 / num_interpolated_frames;
+
+        // Calculate the interpolated frame ID (this is added to the starting keyframe ID to obtain the final ID)
+        int interpolated_id = 1;
+        
+        // Add the first keyframe into the vector of all frames
+        all_frames.push_back(k1);
+
+        // Add all interpolated frames in between the two keyframes into the vector of all frames
+        for (float u = step_size; u < 1.0; u += step_size) {
+            Frame interpolated_frame = find_interpolated_frame(k0, k1, k2, k3, u, k1.frame_id + interpolated_id);
+            all_frames.push_back(interpolated_frame);
+            interpolated_id++;
+        }
+    }
+}
+
+//////////////////////////////
+///    PARSING FUNCTIONS   ///
+//////////////////////////////
+
+// String splitting function using vector<string> as a storage for the tokens
+vector<string> strsplit(string &s, char delim) {
+    vector<string> toks;
+    istringstream iss(s);
+    string item;
+    while (getline(iss, item, delim)) {
+        toks.push_back(item);
+    }
+    return toks;
+}
+
+//////////////////////////////
+///      MAIN FUNCTION     ///
+//////////////////////////////
 
 // Main function where the parsing is done and everything comes together
 int main(int argc, char* argv[]) {
@@ -275,7 +396,7 @@ int main(int argc, char* argv[]) {
         else { 
             // Initialize variable to store the number of frames and the frame objects themselves
             int num_frames;
-            vector<Frame> frames;
+            vector<Frame> keyframes;
 
             // Line to be read
             string line;
@@ -323,18 +444,26 @@ int main(int argc, char* argv[]) {
                         r[0] = atof(tokens[idx4].c_str());
                         r[1] = atof(tokens[idx3].c_str());
                         r[2] = atof(tokens[idx2].c_str());
-                        angle = deg2rad(atof(tokens[idx1].c_str()));
-                        frames.push_back(Frame(frame_id, t, s, r, angle, true));
+                        angle = atof(tokens[idx1].c_str());
+                        keyframes.push_back(Frame(frame_id, t, s, r, angle, true));
                     }
                 }
             }
 
-            for (int i = 0; i < frames.size(); i++) {
-                frames[i].print_frame();
-            }
+            // Last keyframe is just the first frame again
+            Frame last_frame = keyframes[0];
+            last_frame.frame_id = num_frames;
+            keyframes.push_back(last_frame);
 
-            // Generate interpolated frames between every 2 keyframes
-            // generate_interpolated_frames(frames);
+            // Re-initialize all frames in the scene
+            all_frames = vector<Frame>();
+
+            // Generate all interpolated frames between every all keyframes
+            generate_interpolated_frames(keyframes);
+
+            // Set the current frame id to 0
+            curr_frame_id = 0;
+            cout << "Loading frame " << curr_frame_id << "\n";
 
             // After the scene parsing business is done, render the scene
             glutInit(&argc, argv);
