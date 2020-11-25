@@ -8,7 +8,7 @@ void main()
 {
     // Retrieves the texture color for this pixel
     vec4 tex_color = texture2D(texture_map, gl_TexCoord[0].st);
-
+    
     // Retrieves the surface normal mapping for this pixel
     vec3 n = texture2D(normal_map, gl_TexCoord[0].st).rgb;
 

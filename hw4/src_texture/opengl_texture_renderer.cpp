@@ -204,7 +204,7 @@ void init(void) {
     curr_rotation = Quaternion_identity();
 
     // Initialize lighting model. This is the same lighting source as the one in the shader demo
-    GLfloat pos[] = {7.0, 2.0, 3.0, 1.0};
+    GLfloat pos[] = {0.0, 0.0, 3.0, 1.0};
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
     glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1.0);
@@ -262,10 +262,7 @@ void display(void) {
     glLoadIdentity();
     // Remember to apply inverse camera transforms BEFORE the actual
     // geometric transforms due to OpenGL Post-Multiplication behavior
-
-    // Apply inverse camera transform
-    glTranslatef(0, 0, 0);
-
+    
     // Converts the Quaternion to rotation matrix and apply this Arcball rotation to all points
     Quaternion arcball_quar = get_current_rotation();
 
