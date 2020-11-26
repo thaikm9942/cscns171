@@ -4,12 +4,13 @@
 #include <GL/glu.h>
 #include <GL/glut.h>
 
-// Includes for Eigen library and parser.h and quaternion.h and halfedge.h
+// Includes for Eigen library and parser.h and halfedge.h
 #include "../Eigen/Dense"
-#include "../include/quaternion.h"
 #include "../include/vertex.h"
+#include "../include/object.h"
 #include "../include/frame.h"
 #include "../include/utils.h"
+#include "../include/halfedge.h"
 
 // Includes for standard C library
 #include <stdlib.h>
@@ -32,6 +33,8 @@ using namespace std;
 /* Defining prototype functions we want to write for OpenGL */
 
 void init(void);
+void init_lights();
+void set_lights();
 void reshape(int width, int height);
 void display(void);
 void key_pressed(unsigned char key, int x, int y);
@@ -47,9 +50,6 @@ int start_x, start_y, curr_x, curr_y;
 // Width and height of the program
 int width = 800;
 int height = 800;
-
-/* Needed to draw the cylinders using glu */
-GLUquadricObj *quadratic;
 
 // Vector of keyframes
 vector<Frame> all_frames;
@@ -83,23 +83,69 @@ void init(void) {
     // Enables auto-normalization of vectors
     glEnable(GL_NORMALIZE);
 
-    // Initialize quadratic
-    quadratic = gluNewQuadric();
-
     // Set the matrix modified to be the projection matrix
     glMatrixMode(GL_PROJECTION);
 
     // Load the identity matrix as the projection matrix
     glLoadIdentity();
 
+    // Enables vertex buffer array and normal buffer array
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+
     // Create the perspective projection matrix using frustum parameters - these are hardcoded for the purpose
-    // of the assignment
-    glFrustum(-1.0, 1.0, 
-        -1.0, 1.0, 
-        1.0, 60.0);
+    // of the assignment (taken from the scene file for the bunny from HW 5)
+    glFrustum(-0.5, 0.5, 
+        -0.5, 0.5, 
+        1.0, 10.0);
 
     // Set the matrix modified to be the main matrix
     glMatrixMode(GL_MODELVIEW);
+
+    // Initialize lights
+    init_lights();
+}
+
+// Initialize the light sources in the scene
+void init_lights() {
+    // Enables lighting calculations in OpenGL
+    glEnable(GL_LIGHTING);
+    
+    // Create light source 1
+    glEnable(GL_LIGHT0);
+
+    // Hardcode color values and attenuation constant
+    float c0[3] = {0.0, 0.6, 0.8};
+    float k0 = 0.0;
+
+    // Set up ambient, diffuse, specular light color and attenuation for light 1
+    glLightfv(GL_LIGHT0, GL_AMBIENT, c0);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, c0);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, c0);
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, k0);
+
+    // Create light source 2
+    glEnable(GL_LIGHT1);
+
+    // Hardcode color values and attenuation constant
+    float c1[3] = {0.0, 0.1, 0.2};
+    float k1 = 0.0;
+
+    // Set up ambient, diffuse, specular light color and attenuation for light 2
+    glLightfv(GL_LIGHT1, GL_AMBIENT, c1);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, c1);
+    glLightfv(GL_LIGHT1, GL_SPECULAR, c1);
+    glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, k1);
+}
+
+// Sets the light sources position in the scene
+void set_lights() {
+    // Hardcode the light source positions - refer to scene_bunny.txt from HW 5
+    float p0[4] = {5.0, 5.0, 5.0, 1.0};
+    glLightfv(GL_LIGHT0, GL_POSITION, p0);
+
+    float p1[4] = {-5.0, 5.0, -5.0, 1.0};
+    glLightfv(GL_LIGHT1, GL_POSITION, p1);
 }
 
 // Reshape function
@@ -115,59 +161,51 @@ void reshape(int width, int height) {
     glutPostRedisplay();
 }
 
+// Draw the frame with the given bunny Object
+void draw_bunny(Object* bunny) {
+    // Push a copy of the current Modelview Matrix onto the Stack
+    glPushMatrix();
 
-void drawIBar()
-{
-    // Add the interpolated translation, scaling and rotation geometric transformation based on the current frame
-    Frame frame = all_frames[curr_frame_id];
-    glTranslatef(frame.t[0], frame.t[1], frame.t[2]);
-    glRotatef(frame.angle, frame.r[0], frame.r[1], frame.r[2]);
-    glScalef(frame.s[0], frame.s[1], frame.s[2]);
+    // Hardcoded geometric transformations for the bunny object
+    glScalef(1, 1, 1);
+    glRotatef(rad2deg(0.0), 1.0, 0.0, 0.0);
+    glTranslatef(0, 0, 0);
+    
+    // Set the material properties of the object being rendered
+    float amb[3] = {0.5, 0.5, 0.5};
+    float dif[3] = {0.5, 0.5, 0.5};
+    float spec[3] = {0.5, 0.5, 0.5};
+    float shininess = 0.1;
 
-    /* Parameters for drawing the cylinders */
-    float cyRad = 0.2, cyHeight = 1.0;
-    int quadStacks = 4, quadSlices = 4;
-    
-    glPushMatrix();
-    glColor3f(0, 0, 1);
-    glTranslatef(0, cyHeight, 0);
-    glRotatef(90, 1, 0, 0);
-    gluCylinder(quadratic, cyRad, cyRad, 2.0 * cyHeight, quadSlices, quadStacks);
-    glPopMatrix();
-    
-    glPushMatrix();
-    glColor3f(0, 1, 1);
-    glTranslatef(0, cyHeight, 0);
-    glRotatef(90, 0, 1, 0);
-    gluCylinder(quadratic, cyRad, cyRad, cyHeight, quadSlices, quadStacks);
-    glPopMatrix();
-    
-    glPushMatrix();
-    glColor3f(1, 0, 1);
-    glTranslatef(0, cyHeight, 0);
-    glRotatef(-90, 0, 1, 0);
-    gluCylinder(quadratic, cyRad, cyRad, cyHeight, quadSlices, quadStacks);
-    glPopMatrix();
-    
-    glPushMatrix();
-    glColor3f(1, 1, 0);
-    glTranslatef(0, -cyHeight, 0);
-    glRotatef(-90, 0, 1, 0);
-    gluCylinder(quadratic, cyRad, cyRad, cyHeight, quadSlices, quadStacks);
-    glPopMatrix();
-    
-    glPushMatrix();
-    glColor3f(0, 1, 0);
-    glTranslatef(0, -cyHeight, 0);
-    glRotatef(90, 0, 1, 0);
-    gluCylinder(quadratic, cyRad, cyRad, cyHeight, quadSlices, quadStacks);
+    // Set material properties for OpenGL
+    glMaterialfv(GL_FRONT, GL_AMBIENT, amb);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, dif);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, spec);
+    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
+
+    // Set the pointer to the vertex buffer array of the object being rendered
+    glVertexPointer(3, GL_FLOAT, 0, &bunny->vertex_buffer[0]);
+
+    // Set the pointer to the normal buffer array of the object being rendered
+    glNormalPointer(GL_FLOAT, 0, &bunny->normal_buffer[0]);
+
+    int buffer_size = bunny->vertex_buffer.size();
+    glDrawArrays(GL_TRIANGLES, 0, buffer_size);
+
+    // Retrieve the Modelview Matrix pretransformation of an object
     glPopMatrix();
 }
 
 // Function to draw the text representing the current frame number on the top right corner of the window
 void drawText() {
     // String buffer
-    unsigned char buffer[100] = "FRAME: ";    
+    unsigned char buffer[100];
+    if (all_frames[curr_frame_id].is_keyframe) {
+        strcpy((char*) buffer, "KEYFRAME: ");
+    }
+    else {
+        strcpy((char*) buffer, "FRAME: ");
+    }  
 
     // Convert the current frame id to text
     stringstream ss;
@@ -185,7 +223,7 @@ void drawText() {
     glWindowPos2f(width - 100, height - 50);
 
     // Set color of text
-    glColor3f(1., 0., 0.);
+    glColor3f(1., 1., 1.);
     int len = strlen((const char*) buffer);
 
     // Draw each character in the frame text
@@ -194,7 +232,8 @@ void drawText() {
     }
 }
 
-// Main "display" function
+// Main "display" function. Displays the current object of the current frame (which is retrieved by a global
+// frame id variable)
 void display(void) {
     // Reset color buffer and depth buffer array
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -205,13 +244,21 @@ void display(void) {
     // Remember to apply inverse camera transforms BEFORE the actual
     // geometric transforms due to OpenGL Post-Multiplication behavior
 
-    // Camera is hardcoded here at position (0, 0, 40) for the purpose of the assignment
+    // Camera is hardcoded here using the values from the scene_bunny.txt file form HW 5
     // Apply inverse camera transform, including rotation AND then translation
-    glTranslatef(0, 0, -40);
+    glRotatef(-rad2deg(0.0), 0.0, -1.0, 0.0);
+    glTranslatef(0, 0, -3);
 
-    // Draw I-Bar
-    drawIBar();
+    // Set the light sources positions
+    set_lights();
 
+    // Only draw bunnies if there are more than 0 frames
+    if (all_frames.size() > 0) {
+        // Draw the bunny object in the current frame
+        draw_bunny(all_frames[curr_frame_id].object);
+    }
+
+    // Display the text showing what frame we are in
     drawText();
 
     // Swap the active and off-screen buffers with one another
@@ -228,8 +275,11 @@ void key_pressed(unsigned char key, int x, int y) {
     // Toggle next keyframe and loop back as needed
     else if(key == 'n')
     {
+        // If there are no frames, then do nothing
+        if (all_frames.size() == 0) {
+            return;
+        }
         curr_frame_id = (curr_frame_id + 1) % all_frames.size();
-        cout << "Loading frame " << curr_frame_id << "\n";
         glutPostRedisplay();
     }
 }
@@ -260,69 +310,28 @@ float find_interpolated_value(Eigen::Vector4f p, float u) {
     return v * k;
 }
 
-// Compute the interpolated translation vector
-void find_interpolated_translation(float t[3], Frame k0, Frame k1, Frame k2, Frame k3, float u) {
-    t[0] = find_interpolated_value(Eigen::Vector4f(k0.t[0], k1.t[0], k2.t[0], k3.t[0]), u);
-    t[1] = find_interpolated_value(Eigen::Vector4f(k0.t[1], k1.t[1], k2.t[1], k3.t[1]), u);
-    t[2] = find_interpolated_value(Eigen::Vector4f(k0.t[2], k1.t[2], k2.t[2], k3.t[2]), u);
+// This function calculates the interpolated vertex given four control vertices and the step paramter
+Vertex find_interpolated_vertex(Vertex v0, Vertex v1, Vertex v2, Vertex v3, float u) {
+    float x = find_interpolated_value(Eigen::Vector4f(v0.x, v1.x, v2.x, v3.x), u);
+    float y = find_interpolated_value(Eigen::Vector4f(v0.y, v1.y, v2.y, v3.y), u);
+    float z = find_interpolated_value(Eigen::Vector4f(v0.z, v1.z, v2.z, v3.z), u);
+    return Vertex(x, y, z);
 }
 
-// Compute the interpolated rotation vector
-void find_interpolated_scaling(float s[3], Frame k0, Frame k1, Frame k2, Frame k3, float u) {
-    s[0] = find_interpolated_value(Eigen::Vector4f(k0.s[0], k1.s[0], k2.s[0], k3.s[0]), u);
-    s[1] = find_interpolated_value(Eigen::Vector4f(k0.s[1], k1.s[1], k2.s[1], k3.s[1]), u);
-    s[2] = find_interpolated_value(Eigen::Vector4f(k0.s[2], k1.s[2], k2.s[2], k3.s[2]), u);
-}
-
-// Compute the interpolated quaternion component-wise
-Quaternion find_interpolated_quaternion(Frame k0, Frame k1, Frame k2, Frame k3, float u) {
-    float s = find_interpolated_value(Eigen::Vector4f(k0.q.s, k1.q.s, k2.q.s, k3.q.s), u);
-    float x = find_interpolated_value(Eigen::Vector4f(k0.q.v[0], k1.q.v[0], k2.q.v[0], k3.q.v[0]), u);
-    float y = find_interpolated_value(Eigen::Vector4f(k0.q.v[1], k1.q.v[1], k2.q.v[1], k3.q.v[1]), u);
-    float z = find_interpolated_value(Eigen::Vector4f(k0.q.v[2], k1.q.v[2], k2.q.v[2], k3.q.v[2]), u);
-    return Quaternion(s, x, y, z);
-}
-
-// Compute the interpolated rotation vector given its quaternion representatino
-void find_interpolated_rotation(float r[3], Quaternion new_q) {
-    // If the real component (s) is 1, then our square root is 0, 
-    // then we can set rotation axis to be any arbitrary axis since the angle of rotation is 0
-    if (sqrt(1 - new_q.s * new_q.s) < 10e-6) {
-        r[0] = 0;
-        r[1] = 0;
-        r[2] = 1;
-    }
-    else {
-        r[0] = new_q.v[0] / sqrt(1 - new_q.s * new_q.s);
-        r[1] = new_q.v[1] / sqrt(1 - new_q.s * new_q.s);
-        r[2] = new_q.v[2] / sqrt(1 - new_q.s * new_q.s);
-    }
-}
-
+// This function returns a Frame containing an object whose vector of vertices were interpolated
+// using the four control frames' object's vertices and the step paramter u
 Frame find_interpolated_frame(Frame k0, Frame k1, Frame k2, Frame k3, float u, int id) {
-    // Calculate the interpolated translation vector
-    float t[3];
-    find_interpolated_translation(t, k0, k1, k2, k3, u);
+    Object* interpolated_object = new Object();
+    for (int i = 0; i < k0.object->vertices.size(); i++) {
+        Vertex interpolated_vertex = find_interpolated_vertex(k0.object->vertices[i], k1.object->vertices[i],
+            k2.object->vertices[i], k3.object->vertices[i], u);
+        interpolated_object->vertices.push_back(interpolated_vertex);
+    }
 
-    // Calculate the interpolated scaling vector
-    float s[3];
-    find_interpolated_scaling(s, k0, k1, k2, k3, u);
-
-    // Calculate the interpolated quaternion
-    Quaternion q = find_interpolated_quaternion(k0, k1, k2, k3, u);
-
-    // Normalize the quaternion after interpolation
-    q.normalize();
-
-    // Calculates the new rotation axis
-    float r[3];
-    find_interpolated_rotation(r, q);
-
-    // Calculates the new rotation angle
-    float angle = rad2deg(2 * acos(q.s));
-
-    // Returns the interpolated frame corresponding to the step iteration u
-    return Frame(id, t, s, r, angle, q, false);
+    // The faces are the same across all frame objects, so we just the faces of interpolated object
+    // to be the face of the object of any control frame
+    interpolated_object->faces = k0.object->faces;
+    return Frame(id, interpolated_object, false);
 }
 
 // Generate all interpolated frames between every pair of keyframes
@@ -333,9 +342,11 @@ void generate_interpolated_frames(vector<Frame> &keyframes) {
         Frame k1 = keyframes[i];
         Frame k2 = keyframes[i + 1];
 
-        // Get keyframes i - 1 and i + 2
-        Frame k0 = keyframes[((i - 1) + size) % size];
-        Frame k3 = keyframes[(i + 2) % size];
+        // Get keyframes i - 1 and i + 2. If this is the first keyframe, then the first and second control frame is 
+        // both keyframe 0. If this is the second to last keyframe, then the third and fourth control frame is both
+        // the last keyframe.
+        Frame k0 = keyframes[max(0, i - 1)];
+        Frame k3 = keyframes[min(size - 1, i + 2)];
 
         // Calculate the number of interpolated frames in between k_i and k_{i+1} (including both keyframes)
         int num_interpolated_frames = k2.frame_id - k1.frame_id;
@@ -356,11 +367,58 @@ void generate_interpolated_frames(vector<Frame> &keyframes) {
             interpolated_id++;
         }
     }
+
+    // Add the last keyframe to our vector of all frames
+    all_frames.push_back(keyframes[size - 1]);
 }
 
 //////////////////////////////
 ///    PARSING FUNCTIONS   ///
 //////////////////////////////
+
+// This function returns a graphical Object from a successfully
+// opened file stream
+Object parse_object(ifstream &ifs) {
+    // Initializes the vectors containing the corresponding vertices and faces
+    // of an object
+    Object obj = Object();
+    obj.add(NULL_VERTEX);
+
+    // Variables to store the tokens from the file
+    // The "type" of data, either a face or a vertex
+    string type;
+
+    // The corresponding vertex coordinates or vertex indices. We 
+    // keep these as strings to convert to either floats or ints later
+    string n1, n2, n3;
+
+    // Process all tokens for either a vertex or a face line-by-line
+    while (ifs >> type >> n1 >> n2 >> n3) {
+        // If the first character of the line is 'v', then process the
+        // strings as vertex float coordinates 
+        if (type.compare(string("v")) == 0) {
+            Vertex v = Vertex(strtof(n1.c_str(), NULL), strtof(n2.c_str(), NULL), strtof(n3.c_str(), NULL));
+            obj.add(v);
+        }
+        // If the first character is 'f' instead, then process the strings
+        // as vertex indices of a face
+        else if (type.compare(string("f")) == 0) {
+            // Indices of the vertex in the face
+            int idx1 = atoi(n1.c_str());
+            int idx2 = atoi(n2.c_str());
+            int idx3 = atoi(n3.c_str());
+
+            // Create Face object and add Face to the Object
+            Face f = Face(idx1, idx2, idx3);
+            obj.add_face(f);
+        }
+        else {
+            cout << "Data is neither a vertex or a file\n";
+            break;
+        }
+    }
+    return obj;
+}
 
 // String splitting function using vector<string> as a storage for the tokens
 vector<string> strsplit(string &s, char delim) {
@@ -373,127 +431,143 @@ vector<string> strsplit(string &s, char delim) {
     return toks;
 }
 
+// Get object associated with a specific .obj file
+Object create_object(const char* filename) {
+    ifstream obj_ifs;
+    
+    // Opens a new read stream for the object file
+    obj_ifs.open(filename, ifstream::in);
+
+    Object obj;
+    if (!obj_ifs.is_open()) {
+        throw "Error opening .obj file\n";
+    }
+    else {
+        obj = parse_object(obj_ifs);
+    }
+
+    // Returns the object data associated with the open stream
+    return obj;
+}
+
+///////////////////////////////
+///    HALFEDGE FUNCTIONS   ///
+///////////////////////////////
+
+// Function to fill in the vertex and normal buffers for each object in a  frame
+void fill_buffers() {
+    for (int i = 0; i < all_frames.size(); i++) {
+        // Retrieves the current frame and its corresponding object
+        Frame curr_frame = all_frames[i];
+        Object* object = curr_frame.object;
+
+        // Retrieves the mesh data for this object
+        Mesh_Data* mesh_data = create_mesh_data(*object);
+
+        // Allocate new pointers to the store halfedge vertices and halfedge faces
+        vector<HEV*> *hevs = new vector<HEV*>;
+        vector<HEF*> *hefs = new vector<HEF*>;
+
+        // Build the halfedge data structure representation of this object
+        build_HE(mesh_data, hevs, hefs);
+
+        // Compute the vertex normals for each vertex in the halfedge data structure,
+        // need to ignore the first vertex since that's NULL
+        for (int j = 1; j < hevs->size(); j++) {
+            compute_vertex_normal(hevs->at(j));
+        }
+
+        // For each halfedge face, we will add the 3 vertices that form the face and their
+        // respective vertex normals into the buffers
+        for (int j = 0; j < hefs->size(); j++) {
+            // Obtain the face at index j
+            HEF* hef = hefs->at(j);
+
+            // Get the corresponding halfedge of this face
+            HE* he = hef->edge;
+
+            // Retrieves the 3 vertices that form this face
+            HEV* v1 = he->vertex;
+            HEV* v2 = he->next->vertex;
+            HEV* v3 = he->next->next->vertex;
+            
+            // Add the vertices into the vertex buffer
+            object->add_vertex_to_buffer(Vertex(v1->x, v1->y, v1->z));
+            object->add_vertex_to_buffer(Vertex(v2->x, v2->y, v2->z));
+            object->add_vertex_to_buffer(Vertex(v3->x, v3->y, v3->z));
+
+            // Add their corresponding vertex normals into the normal buffer
+            object->add_normal_to_buffer(v1->normal);
+            object->add_normal_to_buffer(v2->normal);
+            object->add_normal_to_buffer(v3->normal);
+        }
+
+        // Delete the mesh data used to calculate our normals
+        delete_HE(hevs, hefs);
+    }
+}
+
 //////////////////////////////
 ///      MAIN FUNCTION     ///
 //////////////////////////////
 
 // Main function where the parsing is done and everything comes together
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printf("Usage: ./keyframe [test_script.script]\n");
+    if (argc != 6) {
+        printf("Usage: ./keyframe [keyframe1.obj] [keyframe2.obj] [keyframe3.obj] [keyframe4.obj] [keyframe5.obj]\n");
     }
     else {
-        // Initialize filestream
-        ifstream ifs;
+        // Clear all objects
+        all_frames.clear();
 
-        // Open the script file
-        ifs.open(argv[1], ifstream::in);
-
-        // If file opening is unsuccessful, print out an error message
-        if (!ifs.is_open()) {
-            cout << "Error opening file\n";
+        // Vector to store all the keyframes of the bunny object
+        vector<Frame> keyframes;
+        
+        // Process all keyframe object
+        for (int i = 1; i < 6; i++) {
+            // Open the bunny object file and create its corresponding object from it
+            Object bunny_object = create_object(argv[i]); 
+            Frame bunny_frame = Frame((i - 1) * 5, new Object(bunny_object), true);
+            keyframes.push_back(bunny_frame);
         }
-        else { 
-            // Initialize variable to store the number of frames and the frame objects themselves
-            int num_frames;
-            vector<Frame> keyframes;
 
-            // Line to be read
-            string line;
+        // Generate all interpolated frames between every pair of keyframes
+        generate_interpolated_frames(keyframes);
 
-            // Variables to hold the values for the parsed translation, scaling and rotation components
-            int frame_id;   
-            float t[3];
-            float s[3];
-            float r[3];
-            float angle;   
+        // Fill the vertex and vertex normal buffers of each frame object
+        fill_buffers();
 
-            // Parsing text and loading all data into their appropriate data structures
-            while (getline(ifs, line)) {
-                vector<string> tokens = strsplit(line, ' ');
+        // Set the current frame id to 0
+        curr_frame_id = 0;
+        
+        // After preprocessing, we now render the scene
+        glutInit(&argc, argv);
 
-                // If there's only 1 token, this is the frame number
-                if (tokens.size() == 1) {
-                    num_frames = atoi(tokens[0].c_str());
-                }
-                // If there's 2 tokens, this is the line containing the keyframe numeber
-                else if (tokens.size() == 2) {
-                    frame_id = atoi(tokens[1].c_str());
-                }
-                // If there are more than 4 tokens, then these are the translation, scaling and rotation vectors
-                else if (tokens.size() >= 4) {
-                    // Gets the type of transformation vector
-                    string type = tokens[0];   
+        // Initialize OpenGL display with double, RGB and depth buffers
+        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
 
-                    // Weird indexing since strsplit only splits by a single white space character 
-                    int idx1 = tokens.size() - 1;     
-                    int idx2 = tokens.size() - 2; 
-                    int idx3 = tokens.size() - 3; 
-                    int idx4 = tokens.size() - 4;          
-                    if (type.compare(string("translation")) == 0) {
-                        t[0] = atof(tokens[idx3].c_str());
-                        t[1] = atof(tokens[idx2].c_str());
-                        t[2] = atof(tokens[idx1].c_str());
-                    }
-                    else if (type.compare(string("scale")) == 0) {
-                        s[0] = atof(tokens[idx3].c_str());
-                        s[1] = atof(tokens[idx2].c_str());
-                        s[2] = atof(tokens[idx1].c_str());
-                    }
-                    else if (type.compare(string("rotation")) == 0) {
-                        r[0] = atof(tokens[idx4].c_str());
-                        r[1] = atof(tokens[idx3].c_str());
-                        r[2] = atof(tokens[idx2].c_str());
-                        angle = atof(tokens[idx1].c_str());
-                        keyframes.push_back(Frame(frame_id, t, s, r, angle, true));
-                    }
-                }
-            }
+        // Initialize window size
+        glutInitWindowSize(width, height);
 
-            // Last keyframe is just the first frame again
-            Frame last_frame = keyframes[0];
-            last_frame.frame_id = num_frames;
-            keyframes.push_back(last_frame);
+        // Set top-left corner of window to be (0, 0)
+        glutInitWindowPosition(0, 0);
 
-            // Re-initialize all frames in the scene
-            all_frames = vector<Frame>();
+        // Create window with name "Shader"
+        glutCreateWindow("Shader");
 
-            // Generate all interpolated frames between every all keyframes
-            generate_interpolated_frames(keyframes);
+        // Call our init function
+        init();
 
-            // Set the current frame id to 0
-            curr_frame_id = 0;
-            cout << "Loading frame " << curr_frame_id << "\n";
+        // Set OpenGL display function to our display function
+        glutDisplayFunc(display);
 
-            // After the scene parsing business is done, render the scene
-            glutInit(&argc, argv);
+        // Set OpenGL reshape function to our reshape function
+        glutReshapeFunc(reshape);
 
-            // Initialize OpenGL display with double, RGB and depth buffers
-            glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+        // Set OpenGL keyboard handler to be our key_pressed function
+        glutKeyboardFunc(key_pressed);
 
-            // Initialize window size
-            glutInitWindowSize(width, height);
-
-            // Set top-left corner of window to be (0, 0)
-            glutInitWindowPosition(0, 0);
-
-            // Create window with name "Shader"
-            glutCreateWindow("Shader");
-
-            // Call our init function
-            init();
-
-            // Set OpenGL display function to our display function
-            glutDisplayFunc(display);
-
-            // Set OpenGL reshape function to our reshape function
-            glutReshapeFunc(reshape);
-
-            // Set OpenGL keyboard handler to be our key_pressed function
-            glutKeyboardFunc(key_pressed);
-
-            // Run our event processing loop
-            glutMainLoop();
-        }     
+        // Run our event processing loop
+        glutMainLoop();
     }
 }
