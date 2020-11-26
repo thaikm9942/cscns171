@@ -118,6 +118,11 @@ void reshape(int width, int height) {
 
 void drawIBar()
 {
+    // If there are no frames, then do nothing
+    if (all_frames.size() == 0) {
+        return;
+    }
+    
     // Add the interpolated translation, scaling and rotation geometric transformation based on the current frame
     Frame frame = all_frames[curr_frame_id];
     glTranslatef(frame.t[0], frame.t[1], frame.t[2]);
@@ -167,7 +172,13 @@ void drawIBar()
 // Function to draw the text representing the current frame number on the top right corner of the window
 void drawText() {
     // String buffer
-    unsigned char buffer[100] = "FRAME: ";    
+    unsigned char buffer[100];
+    if (all_frames[curr_frame_id].is_keyframe) {
+        strcpy((char*) buffer, "KEYFRAME: ");
+    }
+    else {
+        strcpy((char*) buffer, "FRAME: ");
+    } 
 
     // Convert the current frame id to text
     stringstream ss;
@@ -228,8 +239,11 @@ void key_pressed(unsigned char key, int x, int y) {
     // Toggle next keyframe and loop back as needed
     else if(key == 'n')
     {
+        // If there are no frames, then do nothing
+        if (all_frames.size() == 0) {
+            return;
+        }
         curr_frame_id = (curr_frame_id + 1) % all_frames.size();
-        cout << "Loading frame " << curr_frame_id << "\n";
         glutPostRedisplay();
     }
 }
@@ -463,7 +477,6 @@ int main(int argc, char* argv[]) {
 
             // Set the current frame id to 0
             curr_frame_id = 0;
-            cout << "Loading frame " << curr_frame_id << "\n";
 
             // After the scene parsing business is done, render the scene
             glutInit(&argc, argv);
