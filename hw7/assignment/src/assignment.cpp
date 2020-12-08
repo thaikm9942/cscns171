@@ -107,8 +107,8 @@ double GetInitialGuess(const Ray &ray) {
     }
 
     // Solve the quadratic equations for our func
-    double t1 = sign(b) * (-abs(b) - delta) / (2.0 * a);
-    double t2 = sign(b) * (2.0 * c) / (-abs(b) - delta);
+    double t1 = sign(b) * (-abs(b) - sqrt(delta)) / (2.0 * a);
+    double t2 = sign(b) * (2.0 * c) / (-abs(b) - sqrt(delta));
 
     // If b >= 0, then t1 = t_minus and t2 = t_plus. Else, t1 = t_plus and t2 = t_minus. 
     // We can flip t1 and t2 when b < 0 such that t1 = t_minus and t2 = t_plus is always true.
@@ -191,12 +191,12 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
         coord = ray.At(t_new);
 
         // Recompute the gradient of the inside-outside function at time t = t_new
-        dg =  ray.direction.transpose() * InsideOutsideGrad(coord(0), coord(1), coord(2), e, n);
+        dg = ray.direction.transpose() * InsideOutsideGrad(coord(0), coord(1), coord(2), e, n);
 
         // Recompute the value of the inside-outside function at time t = t_new
         g = InsideOutsideFunc(coord(0), coord(1), coord(2), e, n);
 
-        // If g'(t) flips from negative to positive, break out of loop
+        // If both g(t) and g'(t) are sufficiently small enough, break out of loop
         if (abs(dg) <= epsilon && abs(g) <= epsilon) {
             break;
         }
@@ -244,10 +244,8 @@ pair<double, Intersection> Superquadric::ClosestIntersection(const Ray &ray) {
     // Find the normal vector corresponding to the body-space intersecting position
     Vector3d normal = GetNormal(origin);
 
-    // Initialize our ray object
-    Ray loc = Ray();
-    loc.origin = origin;
-    loc.direction = normal;
+    // Create homogenous version of coordinate
+    Vector4d h_origin = Vector4d(origin(0), origin(1), origin(2), 1.0);
 
     // Initialize identity matrix for our final trasnform
     Matrix4d final_transform = Matrix4d::Identity();
@@ -255,11 +253,22 @@ pair<double, Intersection> Superquadric::ClosestIntersection(const Ray &ray) {
         final_transform = (*it)->GetMatrix() * final_transform;
     }
 
-    // Transform the intersection ray from body-space to parent-space
-    loc.Transform(final_transform);
+    // Apply transformation to transform origin from body-space to parent-space
+    h_origin = final_transform * h_origin;
+
+    // Apply inverse transpose of the 3x3 part of the transform to the surface normal
+    normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
+    normal.normalize();
+
+    // Initialize our transformed ray object
+    Ray loc = Ray();
+    loc.origin = h_origin.head(3);
+    loc.direction = normal;
+
+    
 
     // Returns a pair indicating the timestep the intersection happens
-    pair<double, Intersection> closest = make_pair(t_final, Intersection(loc, this));
+    pair<double, Intersection> closest = make_pair(t_final / normal.norm(), Intersection(loc, this));
     return closest;
 }
 
@@ -307,8 +316,29 @@ pair<double, Intersection> Assembly::ClosestIntersection(const Ray &ray) {
         final_transform = (*it)->GetMatrix() * final_transform;
     }
 
-    // Transform the intersection ray from body-space to parent-space
-    global_closest.second.location.Transform(final_transform);
+    // Transform the intersection ray from assembly-space to parent-space
+    Ray intersection = global_closest.second.location;
+    Vector3d origin = intersection.origin;
+    Vector3d normal = intersection.direction;
+
+    // Create homogenous version of coordinate
+    Vector4d h_origin = Vector4d(origin(0), origin(1), origin(2), 1.0);
+    
+    // Apply transformation to transform origin from body-space to parent-space and divide
+    // by the w-component
+    h_origin = final_transform * h_origin;
+
+    // Apply inverse transpose of the 3x3 part of the transform to the surface normal
+    normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
+    normal.normalize();
+
+    // Initialize our transformed ray object
+    Ray loc = Ray();
+    loc.origin = h_origin.head(3);
+    loc.direction = normal;
+    
+    // Set the ray of the global closest to be the new transformed ray
+    global_closest.second.location = loc;
 
     return global_closest;
 }
