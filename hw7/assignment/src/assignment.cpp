@@ -106,7 +106,7 @@ double GetInitialGuess(const Ray &ray) {
         return INFINITY;
     }
 
-    // Solve the quadratic equations for our func
+    // Solve the quadratic equations for our function
     double t1 = sign(b) * (-abs(b) - sqrt(delta)) / (2.0 * a);
     double t2 = sign(b) * (2.0 * c) / (-abs(b) - sqrt(delta));
 
@@ -166,7 +166,7 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
         return INFINITY;
     }
 
-    // Compute the point along the ray we're at at time t = t_old
+    // Compute the point along the ray we're at time t = t_old
     Vector3d coord = ray.At(t_old);
 
     // Compute the value of the inside-outside function at time t = t_old
@@ -175,7 +175,7 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
     // Compute the gradient of the inside-outside function at time t = t_old
     double dg =  ray.direction.transpose() * InsideOutsideGrad(coord(0), coord(1), coord(2), e, n);
 
-    // If we're on the surface of the superquadric already, just return the current t (t_old);
+    // If both g(t) and g'(t) are sufficiently small enough, break out of loop
     if (abs(dg) <= epsilon && abs(g) <= epsilon) {
         return t_old;
     }
@@ -184,6 +184,12 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
     // Else, solve for t_final iteratively until stopping condition, which is when both our gradient
     // and function is sufficently close to 0 or when MAX_ITERS is reached
     while (iter < MAX_ITERS) {
+        // If the gradient switches to positive or our g(t) function is small enough,
+        // then we stop
+        if (dg > 0 || abs(g) <= epsilon) {
+            break;
+        }
+
         // Update time step of t_new
         double t_new = t_old - g / dg;
 
@@ -196,16 +202,14 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
         // Recompute the value of the inside-outside function at time t = t_new
         g = InsideOutsideFunc(coord(0), coord(1), coord(2), e, n);
 
-        // If both g(t) and g'(t) are sufficiently small enough, break out of loop
-        if (abs(dg) <= epsilon && abs(g) <= epsilon) {
-            break;
-        }
-
-        // Else, Set t_new to the t_old
+        // Set t_new to the t_old
         t_old = t_new;
+
+        // Increment iteration
         iter++;
     }
 
+    // If we haven't stopped after MAX_ITERS iteration, then just return the current t_old
     return t_old;
 }
 
@@ -255,9 +259,11 @@ pair<double, Intersection> Superquadric::ClosestIntersection(const Ray &ray) {
 
     // Apply transformation to transform origin from body-space to parent-space
     h_origin = final_transform * h_origin;
+    h_origin = h_origin / h_origin(3);
 
     // Apply inverse transpose of the 3x3 part of the transform to the surface normal
     normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
+    t_final = t_final / normal.norm();
     normal.normalize();
 
     // Initialize our transformed ray object
@@ -265,10 +271,8 @@ pair<double, Intersection> Superquadric::ClosestIntersection(const Ray &ray) {
     loc.origin = h_origin.head(3);
     loc.direction = normal;
 
-    
-
     // Returns a pair indicating the timestep the intersection happens
-    pair<double, Intersection> closest = make_pair(t_final / normal.norm(), Intersection(loc, this));
+    pair<double, Intersection> closest = make_pair(t_final, Intersection(loc, this));
     return closest;
 }
 
@@ -327,9 +331,11 @@ pair<double, Intersection> Assembly::ClosestIntersection(const Ray &ray) {
     // Apply transformation to transform origin from body-space to parent-space and divide
     // by the w-component
     h_origin = final_transform * h_origin;
+    h_origin = h_origin / h_origin(3);
 
     // Apply inverse transpose of the 3x3 part of the transform to the surface normal
     normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
+    global_closest.first = global_closest.first / normal.norm();
     normal.normalize();
 
     // Initialize our transformed ray object
@@ -339,7 +345,7 @@ pair<double, Intersection> Assembly::ClosestIntersection(const Ray &ray) {
     
     // Set the ray of the global closest to be the new transformed ray
     global_closest.second.location = loc;
-
+    
     return global_closest;
 }
 
