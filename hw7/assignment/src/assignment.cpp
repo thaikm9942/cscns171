@@ -269,7 +269,6 @@ pair<double, Intersection> Superquadric::ClosestIntersection(const Ray &ray) {
     // Apply inverse transpose of the 3x3 part of the transform to the surface normal and normalize the
     // distance and the normal
     normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
-    t_final = t_final / normal.norm();
     normal.normalize();
 
     // Initialize our transformed ray object
@@ -341,7 +340,6 @@ pair<double, Intersection> Assembly::ClosestIntersection(const Ray &ray) {
 
     // Apply inverse transpose of the 3x3 part of the transform to the surface normal and normalize it
     normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
-    global_closest.first = global_closest.first / normal.norm();
     normal.normalize();
 
     // Initialize our transformed ray object
@@ -412,6 +410,7 @@ Vector3f Lighting(Vector3d &p, Vector3d &n, Material &mat, vector<Light> &lights
         spec_sum += spec_factor * color;
     }
 
+    // Calculate the final color
     Vector3f cp;
     cp(0) = min(1.0, mat.ambient.r + diff_sum(0) * mat.diffuse.r + spec_sum(0) * mat.specular.r);
     cp(1) = min(1.0, mat.ambient.g + diff_sum(1) * mat.diffuse.g + spec_sum(1) * mat.specular.g);
@@ -419,7 +418,6 @@ Vector3f Lighting(Vector3d &p, Vector3d &n, Material &mat, vector<Light> &lights
     
     return cp;
 }
-
 
 /**
  * Raytracing Code
@@ -462,6 +460,9 @@ void Scene::Raytrace() {
 
             // Create the ray to send out from the camera position to each pixel on the grid
             Ray incoming = {cam_pos, direction};
+
+            // We have to rotate our ray by the inverse camera transform to take ray from world-space to camera-space
+            incoming.Transform(camera.rotate.GetMatrix().inverse());
 
             // Finds the closest intersection from each pixel to the screen plane
             pair<double, Intersection> closest = ClosestIntersection(incoming);
