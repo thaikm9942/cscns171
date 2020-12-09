@@ -155,7 +155,7 @@ Vector3d InsideOutsideGrad(double x, double y, double z, double e, double n) {
 double NewtonIterativeSolver(Ray &ray, double e, double n) {
     // Threshold for stopping conditions - used to check when the gradient and our function
     // is close enough to 0 that we can stop
-    double epsilon = 1e-6;
+    double epsilon = 1e-3;
 
     // Solve for the initial guess of t using quadratic equations
     double t_old = GetInitialGuess(ray);
@@ -175,7 +175,7 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
     // Compute the gradient of the inside-outside function at time t = t_old
     double dg =  ray.direction.transpose() * InsideOutsideGrad(coord(0), coord(1), coord(2), e, n);
 
-    // If both g(t) and g'(t) are sufficiently small enough, break out of loop
+    // If both g(t) and g'(t) are sufficiently small enough, just return t_old
     if (abs(dg) <= epsilon && abs(g) <= epsilon) {
         return t_old;
     }
@@ -186,7 +186,7 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
     while (iter < MAX_ITERS) {
         // If the gradient switches to positive or our g(t) function is small enough,
         // then we stop
-        if (dg > 0 || abs(g) <= epsilon) {
+        if ((dg > 0 && g > 0) || abs(g) <= epsilon) {
             break;
         }
 
@@ -207,6 +207,11 @@ double NewtonIterativeSolver(Ray &ray, double e, double n) {
 
         // Increment iteration
         iter++;
+    }
+
+    // Might be possible that when we terminate, both g and dg be positive
+    if (abs(g) > epsilon) {
+        return INFINITY;
     }
 
     // If we haven't stopped after MAX_ITERS iteration, then just return the current t_old
@@ -261,7 +266,8 @@ pair<double, Intersection> Superquadric::ClosestIntersection(const Ray &ray) {
     h_origin = final_transform * h_origin;
     h_origin = h_origin / h_origin(3);
 
-    // Apply inverse transpose of the 3x3 part of the transform to the surface normal
+    // Apply inverse transpose of the 3x3 part of the transform to the surface normal and normalize the
+    // distance and the normal
     normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
     t_final = t_final / normal.norm();
     normal.normalize();
@@ -333,7 +339,7 @@ pair<double, Intersection> Assembly::ClosestIntersection(const Ray &ray) {
     h_origin = final_transform * h_origin;
     h_origin = h_origin / h_origin(3);
 
-    // Apply inverse transpose of the 3x3 part of the transform to the surface normal
+    // Apply inverse transpose of the 3x3 part of the transform to the surface normal and normalize it
     normal = final_transform.block<3, 3>(0, 0).inverse().transpose() * normal;
     global_closest.first = global_closest.first / normal.norm();
     normal.normalize();
@@ -349,22 +355,144 @@ pair<double, Intersection> Assembly::ClosestIntersection(const Ray &ray) {
     return global_closest;
 }
 
+
+/////////////////////////////////
+////     PART 2 FUNCTIONS    ////
+/////////////////////////////////
+
+/* Function that computes the lighting model for Phong shading
+ * @param p - the vertex (in this case, our first intersection point)
+ * @param n - surface normal at that vertex
+ * @param mat - the material of the object our vertex intersected with
+ * @param lights - the light sources
+ * @param e - position of camera
+ */
+Vector3f Lighting(Vector3d &p, Vector3d &n, Material &mat, vector<Light> &lights, Vector3d &e) {
+    // Finds the direction from our vertex p to our camera and normalizes it
+    Vector3d e_dir = e - p;
+    e_dir.normalize();
+
+    // Initialize the sum of diffusion reflectance and specular reflectance
+    Vector3d diff_sum(0.0, 0.0, 0.0);
+    Vector3d spec_sum(0.0, 0.0, 0.0);
+
+    for (auto &light : lights) {
+        // Retrieves the light position and color
+        Vector4d l = light.position;
+        Vector3d color(light.color.r, light.color.g, light.color.b);
+
+        // Find the vector pointing from our vertex to the light source and normalize it
+        Vector3d l_dir = l.head(3) - p;
+
+        // Computes the distance between the light source and the vertex
+        double d = l_dir.norm();
+
+        // Attenuates the color using the given attenuation constant (linear attenuation)
+        color *= 1.0 / (1.0 + d * light.attenuation);
+
+        // Normalize our l_dir
+        l_dir.normalize();
+
+        // Computes the dot product between the n and the l_dir
+        double nl_dot = n.transpose() * l_dir;
+
+        // Computes the diffusion factor to add our color to the diffusion sum
+        double diff_factor = max(0.0, nl_dot);
+        diff_sum += diff_factor * color;
+
+        // Obtain the h vector bisecting l_dir and e_dir and normalize it
+        Vector3d h = e_dir + l_dir;
+        h.normalize();
+
+        // Computes the dot product between n and h
+        double nh_dot = n.transpose() * h;
+
+        // Computes the specular factor, which is the (positive) dot product to the power of the shininess
+        double spec_factor = pow(max(0.0, nh_dot), mat.shininess);
+        spec_sum += spec_factor * color;
+    }
+
+    Vector3f cp;
+    cp(0) = min(1.0, mat.ambient.r + diff_sum(0) * mat.diffuse.r + spec_sum(0) * mat.specular.r);
+    cp(1) = min(1.0, mat.ambient.g + diff_sum(1) * mat.diffuse.g + spec_sum(1) * mat.specular.g);
+    cp(2) = min(1.0, mat.ambient.b + diff_sum(2) * mat.diffuse.b + spec_sum(2) * mat.specular.b);
+    
+    return cp;
+}
+
+
 /**
  * Raytracing Code
  */
 
 void Scene::Raytrace() {
+    // Initialize image of size XRES x YRES
     Image img = Image(XRES, YRES);
 
+    // Get the camera from the scene
+    Camera camera = GetCamera();
+
+    // The camera position is the opposite of the translate deltas in the Camera object
+    Vector3d cam_pos = -camera.translate.GetDelta();
+
+    // Get the light sources from the scene
+    vector<Light> lights = GetLights();
+
+    // Retrieves the camera frustum from the Scene
+    Frustum frust = camera.frustum;
+
+    // Need to retrieve the height and width of the front plane of the frustum
+    double h = 2.0 * frust.near * tan((frust.fov * M_PI / 180) / 2.0);
+    double a = (double) XRES / YRES; // Aspect ratio is the x-resolution divided by y-resolution
+    double w = h * a; // Width is just the height * aspect ratio
+
+    // Initialize basis vectors
+    Vector3d e1(0, 0, -1); // Direction where the camera is looking
+    Vector3d e2(1, 0, 0); // Vector pointing directly to the right relative to the camera
+    Vector3d e3(0, 1, 0); // Vector pointing upwards relative to camera
+
+    // For each pixel (i, j) in the image, want to send out rays through each pixel from our camera
     for (int i = 0; i < XRES; i++) {
         for (int j = 0; j < YRES; j++) {
-            /**
-             * PART 2
-             * TODO: Implement raytracing using the code from the first part
-             *       of the assignment. Set the correct color for each pixel
-             *       here.
-             */
-            img.SetPixel(i, j, Vector3f::Ones());
+            double x = (i - XRES / 2.0) * w / (double) XRES; // Obtain the x-coordinate of the pixel (i, j)
+            double y = (j - YRES / 2.0) * h / (double) YRES; // Obtain the y-coordinate of the pixel (i, j)
+
+            // Computes the direction of the ray going from the camera to each pixel on the grid
+            Vector3d direction = frust.near * e1 + x * e2 + y * e3;
+
+            // Create the ray to send out from the camera position to each pixel on the grid
+            Ray incoming = {cam_pos, direction};
+
+            // Finds the closest intersection from each pixel to the screen plane
+            pair<double, Intersection> closest = ClosestIntersection(incoming);
+
+            // If there is no closest intersection (i.e, the ray misses the screen plane completely),
+            // color it black
+            if (closest.first == INFINITY) {
+                img.SetPixel(i, j, Vector3f::Zero());
+                continue;
+            }
+
+            // Get the intersection object
+            Superquadric* object = closest.second.obj;
+
+            // Get the intersection ray
+            Ray intersection = closest.second.location;
+            
+            // Get the point of intersection
+            Vector3d point = intersection.origin;
+
+            // Get the surface normal at that point
+            Vector3d normal = intersection.direction;
+
+            // Get the material of the intersecting object
+            Material mat = object->GetMaterial();
+
+            // Compute the color of this pixel using the lighting model
+            Vector3f color = Lighting(point, normal, mat, lights, cam_pos);
+
+            // The pixel to the correct color
+            img.SetPixel(i, j, color);
         }
     }
 
