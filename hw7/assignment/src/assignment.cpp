@@ -364,13 +364,16 @@ pair<double, Intersection> Assembly::ClosestIntersection(const Ray &ray) {
  * @param mat - the material of the object our vertex intersected with
  * @param lights - the light sources
  * @param e - position of camera
+ * @param intersect_obj - the object our intersection point p lies on
+ * @param scene - the scene we are in
  */
-Vector3f Lighting(Vector3d &p, Vector3d &n, Material &mat, vector<Light> &lights, Vector3d &e) {
+Vector3f Lighting(Vector3d &p, Vector3d &n, Material &mat, vector<Light> &lights, Vector3d &e, Superquadric* intersect_obj, Scene* scene) {
     // Finds the direction from our vertex p to our camera and normalizes it
     Vector3d e_dir = e - p;
     e_dir.normalize();
 
-    // Initialize the sum of diffusion reflectance and specular reflectance
+    // Initialize the sum of ambient reflectance and diffusion reflectance and specular reflectance
+    Vector3d amb_sum(0.0, 0.0, 0.0);
     Vector3d diff_sum(0.0, 0.0, 0.0);
     Vector3d spec_sum(0.0, 0.0, 0.0);
 
@@ -388,6 +391,23 @@ Vector3f Lighting(Vector3d &p, Vector3d &n, Material &mat, vector<Light> &lights
         // Attenuates the color using the given attenuation constant (linear attenuation)
         color *= 1.0 / (1.0 + d * light.attenuation);
 
+        // Calculate the light contribution to the ambient sum
+        amb_sum += Vector3d(mat.ambient.r * color(0), mat.ambient.g * color(1), mat.ambient.b * color(2));
+
+        // Sends a ray out from the light to the intersection point using direction = p - l vector
+        Ray path = {l.head(3), -l_dir};
+
+        // Checks to see if our path is obstructed by another Superquadric object
+        pair<double, Intersection> closest = scene->ClosestIntersection(path);
+
+        // If the object we intersected on the ray sent out from the light is not the same object
+        // as our intersecting point, then we know our light path is obstructed. Skip
+        // calculating the diffusion and specular contribution of this light to the color
+        if (closest.second.obj != intersect_obj) {
+            continue;
+        }
+
+        // Else, continue running our algorithm
         // Normalize our l_dir
         l_dir.normalize();
 
@@ -412,9 +432,9 @@ Vector3f Lighting(Vector3d &p, Vector3d &n, Material &mat, vector<Light> &lights
 
     // Calculate the final color
     Vector3f cp;
-    cp(0) = min(1.0, mat.ambient.r + diff_sum(0) * mat.diffuse.r + spec_sum(0) * mat.specular.r);
-    cp(1) = min(1.0, mat.ambient.g + diff_sum(1) * mat.diffuse.g + spec_sum(1) * mat.specular.g);
-    cp(2) = min(1.0, mat.ambient.b + diff_sum(2) * mat.diffuse.b + spec_sum(2) * mat.specular.b);
+    cp(0) = min(1.0, amb_sum(0) + diff_sum(0) * mat.diffuse.r + spec_sum(0) * mat.specular.r);
+    cp(1) = min(1.0, amb_sum(1) + diff_sum(1) * mat.diffuse.g + spec_sum(1) * mat.specular.g);
+    cp(2) = min(1.0, amb_sum(2) + diff_sum(2) * mat.diffuse.b + spec_sum(2) * mat.specular.b);
     
     return cp;
 }
@@ -490,7 +510,7 @@ void Scene::Raytrace() {
             Material mat = object->GetMaterial();
 
             // Compute the color of this pixel using the lighting model
-            Vector3f color = Lighting(point, normal, mat, lights, cam_pos);
+            Vector3f color = Lighting(point, normal, mat, lights, cam_pos, object, this);
 
             // The pixel to the correct color
             img.SetPixel(i, j, color);
